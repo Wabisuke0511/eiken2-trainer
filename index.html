@@ -235,6 +235,39 @@ main{padding:20px 16px;max-width:600px;margin:0 auto}
   transition:all .15s;color:var(--text);font-family:inherit}
 .pill-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
 
+/* ===== Input mode toggle (exam modal) ===== */
+.input-mode-tabs{display:flex;background:var(--input-bg);border-radius:var(--radius-sm);
+  padding:3px;margin-bottom:16px;gap:2px}
+.input-mode-btn{flex:1;padding:10px;border:none;border-radius:6px;
+  font-size:14px;font-weight:600;color:var(--text2);
+  background:none;cursor:pointer;font-family:inherit;transition:all .15s}
+.input-mode-btn.active{background:var(--card);color:var(--text);
+  box-shadow:0 1px 4px rgba(0,0,0,.12)}
+
+/* ===== Section block (exam modal) ===== */
+.sec-block{border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:14px;margin-bottom:10px;background:var(--input-bg)}
+.sec-block-header{font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px}
+.sec-input-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.sec-input-label{display:block;font-size:11px;font-weight:600;
+  color:var(--text2);margin-bottom:4px}
+.sec-score-input{width:100%;padding:10px 4px;font-size:20px;font-weight:700;
+  text-align:center;border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--card);color:var(--text);font-family:inherit;
+  -webkit-appearance:none;appearance:none;transition:border-color .15s}
+.sec-score-input:focus{outline:none;border-color:var(--primary)}
+.sec-pct-bar{background:var(--border);border-radius:100px;height:8px;overflow:hidden;margin:8px 0}
+.sec-pct-fill{height:100%;border-radius:100px;transition:width .4s;background:var(--primary)}
+.sec-pct-label{font-size:13px;font-weight:700;color:var(--primary);text-align:right}
+.category-header{font-size:13px;font-weight:700;color:var(--text2);
+  text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;
+  padding-bottom:6px;border-bottom:1.5px solid var(--border)}
+.single-sec-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.single-sec-btn{padding:9px 16px;border:1.5px solid var(--border);border-radius:100px;
+  background:none;font-size:14px;font-weight:600;cursor:pointer;
+  transition:all .15s;color:var(--text);font-family:inherit}
+.single-sec-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+
 /* ===== Day summary bar ===== */
 .info-bar{background:#eef4ff;border-radius:var(--radius-sm);
   padding:10px 16px;margin-bottom:12px;
@@ -432,32 +465,42 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="modal">
     <div class="modal-title" id="examModalTitle">📝 過去問を記録</div>
     <input type="hidden" id="editExamId">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+
+    <!-- メタ情報 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div>
-        <div class="form-label" style="margin-bottom:4px">年度</div>
+        <label class="form-label" style="display:block;margin-bottom:4px">年度</label>
         <select id="examYear" class="form-select">
           <option>2024</option><option>2025</option><option selected>2026</option><option>2027</option>
         </select>
       </div>
       <div>
-        <div class="form-label" style="margin-bottom:4px">回</div>
+        <label class="form-label" style="display:block;margin-bottom:4px">第何回</label>
         <select id="examRound" class="form-select">
           <option>第1回</option><option>第2回</option><option>第3回</option>
         </select>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row" style="margin-bottom:14px">
       <label class="form-label">実施日</label>
       <input type="date" id="examDate" class="form-input">
     </div>
-    <div class="card-title" style="margin-top:12px;margin-bottom:8px">📖 筆記</div>
-    <div id="sectionInputsWrite"></div>
-    <div class="card-title" style="margin-top:12px;margin-bottom:8px">🎧 リスニング</div>
-    <div id="sectionInputsListen"></div>
-    <div class="card-title" style="margin-top:12px;margin-bottom:8px">✍️ ライティング（英文要約）</div>
-    <div id="rubricInputA"></div>
-    <div class="card-title" style="margin-top:12px;margin-bottom:8px">✍️ ライティング（意見論述）</div>
-    <div id="rubricInputB"></div>
+
+    <!-- 入力モード切り替え -->
+    <div class="input-mode-tabs">
+      <button class="input-mode-btn active" id="modeTabBulk" onclick="switchInputMode('bulk')">📋 一括入力</button>
+      <button class="input-mode-btn" id="modeTabSingle" onclick="switchInputMode('single')">✏️ 個別入力</button>
+    </div>
+
+    <!-- 個別入力：セクション選択ピル -->
+    <div id="singleSecSelector" style="display:none">
+      <div class="single-sec-row" id="singleSecBtns"></div>
+    </div>
+
+    <!-- セクションブロック（JS が描画） -->
+    <div id="allSecBlocks"></div>
+
+    <!-- 合計 -->
     <div class="total-pct" id="examTotalDisplay">合計 --%</div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeExamModal()">キャンセル</button>
@@ -707,96 +750,186 @@ function confirmUserName(){
 // =============================================
 // EXAM MODAL
 // =============================================
-function buildSectionInputs(){
-  const totals=getSectionTotals();
-  const writeDefs=SECTION_DEFS.filter(d=>d.key.startsWith('w'));
-  const listenDefs=SECTION_DEFS.filter(d=>d.key.startsWith('l'));
-  function row(d){
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:.82rem;color:var(--text2);min-width:130px">${d.label}</span>
-      <input type="number" min="0" max="${totals[d.key]}" id="sec_${d.key}"
-        class="form-input" style="width:60px" placeholder="0" oninput="calcExamTotal()">
-      <span style="font-size:.82rem;color:var(--text2)">/
-        <input type="number" min="1" max="50" id="secT_${d.key}" value="${totals[d.key]}"
-          class="form-input" style="width:50px;display:inline-block" oninput="calcExamTotal()">
-      </span>
-      <span id="secPct_${d.key}" class="pct-display">--%</span>
-      <div style="flex:1;min-width:100%">
-        <label class="review-check">
-          <input type="checkbox" id="secRev_${d.key}"> 解き直し済み
-          <input type="date" id="secRevDate_${d.key}" class="form-input" style="width:auto;font-size:.75rem;margin-left:6px">
-        </label>
-      </div>
-    </div>`;
-  }
-  document.getElementById('sectionInputsWrite').innerHTML=writeDefs.map(row).join('');
-  document.getElementById('sectionInputsListen').innerHTML=listenDefs.map(row).join('');
+let _inputMode = 'bulk';      // 'bulk' | 'single'
+let _activeSec = 'w1';        // currently selected section in single mode
 
-  function rubric(id){
-    return `<div class="rubric-grid">${WRITING_KEYS.map((k,i)=>`
+// セクション定義（ライティング含む）
+const ALL_SECTION_DEFS = [
+  { key:'w1', label:'筆記1 短文空所補充', category:'📖 筆記', type:'score' },
+  { key:'w2', label:'筆記2 長文空所補充', category:'📖 筆記', type:'score' },
+  { key:'w3', label:'筆記3 長文内容一致', category:'📖 筆記', type:'score' },
+  { key:'l1', label:'リスニング第1部',   category:'🎧 リスニング', type:'score' },
+  { key:'l2', label:'リスニング第2部',   category:'🎧 リスニング', type:'score' },
+  { key:'w4a', label:'✍️ 英文要約',      category:'✍️ ライティング', type:'rubric' },
+  { key:'w4b', label:'✍️ 意見論述',      category:'✍️ ライティング', type:'rubric' },
+];
+
+function secShortLabel(key){
+  return {w1:'筆記1',w2:'筆記2',w3:'筆記3',l1:'LS1部',l2:'LS2部',w4a:'要約',w4b:'意見'}[key]||key;
+}
+
+function buildScoreBlock(def, totals){
+  const t = totals[def.key] || 0;
+  return `
+  <div class="sec-block" id="secBlock_${def.key}">
+    <div class="sec-block-header">${def.label}</div>
+    <div class="sec-input-grid">
+      <div>
+        <span class="sec-input-label">正答数</span>
+        <input type="number" min="0" max="${t}" id="sec_${def.key}"
+          class="sec-score-input" placeholder="–" inputmode="numeric"
+          oninput="calcExamTotal()">
+      </div>
+      <div>
+        <span class="sec-input-label">満点（変更可）</span>
+        <input type="number" min="1" max="50" id="secT_${def.key}" value="${t}"
+          class="sec-score-input" inputmode="numeric" oninput="calcExamTotal()">
+      </div>
+    </div>
+    <div class="sec-pct-bar"><div class="sec-pct-fill" id="secPctFill_${def.key}" style="width:0%"></div></div>
+    <div class="sec-pct-label" id="secPct_${def.key}">–%</div>
+    <div style="margin-top:10px">
+      <label class="review-check">
+        <input type="checkbox" id="secRev_${def.key}"> 解き直し済み
+        <input type="date" id="secRevDate_${def.key}" class="form-input"
+          style="width:auto;font-size:13px;margin-left:8px;padding:6px 10px">
+      </label>
+    </div>
+  </div>`;
+}
+
+function buildRubricBlock(def){
+  return `
+  <div class="sec-block" id="secBlock_${def.key}">
+    <div class="sec-block-header">${def.label}</div>
+    <div class="rubric-grid">
+      ${WRITING_KEYS.map((k,i)=>`
       <div class="rubric-item">
-        <div class="rubric-label">${WRITING_LABELS[i]}</div>
-        <input type="number" min="0" max="4" class="rubric-input" id="rub_${id}_${k}"
-          placeholder="-" oninput="calcExamTotal()">
-      </div>`).join('')}</div>`;
+        <div class="rubric-label">${WRITING_LABELS[i]}<br><span style="font-size:10px;color:var(--text2)">0–4点</span></div>
+        <input type="number" min="0" max="4" class="rubric-input" id="rub_${def.key}_${k}"
+          placeholder="–" inputmode="numeric" oninput="calcExamTotal()">
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buildAllSectionBlocks(){
+  const totals = getSectionTotals();
+  let html = '';
+  let lastCat = '';
+  ALL_SECTION_DEFS.forEach(def => {
+    if(def.category !== lastCat){
+      html += `<div class="category-header bulk-only">${def.category}</div>`;
+      lastCat = def.category;
+    }
+    html += def.type === 'rubric' ? buildRubricBlock(def) : buildScoreBlock(def, totals);
+  });
+  document.getElementById('allSecBlocks').innerHTML = html;
+}
+
+function switchInputMode(mode){
+  _inputMode = mode;
+  document.getElementById('modeTabBulk').classList.toggle('active', mode==='bulk');
+  document.getElementById('modeTabSingle').classList.toggle('active', mode==='single');
+  document.getElementById('singleSecSelector').style.display = mode==='single' ? '' : 'none';
+  document.querySelectorAll('.bulk-only').forEach(el => {
+    el.style.display = mode==='bulk' ? '' : 'none';
+  });
+  if(mode==='single'){
+    renderSingleSecBtns();
+    showSingleSec(_activeSec);
+  } else {
+    ALL_SECTION_DEFS.forEach(def => {
+      const b = document.getElementById('secBlock_'+def.key);
+      if(b) b.style.display = '';
+    });
   }
-  document.getElementById('rubricInputA').innerHTML=rubric('w4a');
-  document.getElementById('rubricInputB').innerHTML=rubric('w4b');
+}
+
+function renderSingleSecBtns(){
+  const btns = ALL_SECTION_DEFS.map(def => `
+    <button class="single-sec-btn${_activeSec===def.key?' active':''}"
+      onclick="showSingleSec('${def.key}')">${secShortLabel(def.key)}</button>`).join('');
+  document.getElementById('singleSecBtns').innerHTML = btns;
+}
+
+function showSingleSec(key){
+  _activeSec = key;
+  ALL_SECTION_DEFS.forEach(def => {
+    const b = document.getElementById('secBlock_'+def.key);
+    if(b) b.style.display = def.key===key ? '' : 'none';
+  });
+  // update pill active state
+  document.querySelectorAll('.single-sec-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', ALL_SECTION_DEFS[i].key===key);
+  });
 }
 
 function calcExamTotal(){
-  const totals=getSectionTotals();
-  let correct=0,total=0;
-  SECTION_DEFS.forEach(d=>{
-    const c=+document.getElementById('sec_'+d.key)?.value||0;
-    const t=+document.getElementById('secT_'+d.key)?.value||totals[d.key];
-    correct+=c; total+=t;
-    const pctEl=document.getElementById('secPct_'+d.key);
-    if(pctEl) pctEl.textContent=t>0?Math.round(c/t*100)+'%':'--';
+  const totals = getSectionTotals();
+  let correct=0, total=0;
+  SECTION_DEFS.forEach(d => {
+    const c = +document.getElementById('sec_'+d.key)?.value || 0;
+    const t = +document.getElementById('secT_'+d.key)?.value || totals[d.key];
+    correct += c; total += t;
+    const pct = t>0 ? Math.round(c/t*100) : 0;
+    const pctEl = document.getElementById('secPct_'+d.key);
+    const fillEl = document.getElementById('secPctFill_'+d.key);
+    if(pctEl) pctEl.textContent = t>0 ? pct+'%' : '–%';
+    if(fillEl) fillEl.style.width = pct+'%';
   });
-  ['w4a','w4b'].forEach(id=>{
-    WRITING_KEYS.forEach(k=>{
-      const v=+document.getElementById(`rub_${id}_${k}`)?.value||0;
-      correct+=v; total+=4;
+  ['w4a','w4b'].forEach(id => {
+    WRITING_KEYS.forEach(k => {
+      const v = +document.getElementById(`rub_${id}_${k}`)?.value || 0;
+      correct += v; total += 4;
     });
   });
-  const pct=total>0?Math.round(correct/total*100):0;
-  document.getElementById('examTotalDisplay').textContent=`合計 ${pct}%（${correct}/${total}点）`;
+  const pct = total>0 ? Math.round(correct/total*100) : 0;
+  document.getElementById('examTotalDisplay').textContent =
+    `合計 ${pct}%（${correct}/${total}点）`;
 }
 
 function openExamModal(id){
-  buildSectionInputs();
-  document.getElementById('examDate').value=new Date().toISOString().split('T')[0];
+  _inputMode = 'bulk';
+  _activeSec = 'w1';
+  document.getElementById('modeTabBulk').classList.add('active');
+  document.getElementById('modeTabSingle').classList.remove('active');
+  document.getElementById('singleSecSelector').style.display = 'none';
+
+  buildAllSectionBlocks();
+  document.getElementById('examDate').value = new Date().toISOString().split('T')[0];
+
   if(id){
-    document.getElementById('examModalTitle').textContent='📝 過去問を編集';
-    document.getElementById('editExamId').value=id;
-    const exam=getExams().find(e=>e.id===id);
+    document.getElementById('examModalTitle').textContent = '📝 過去問を編集';
+    document.getElementById('editExamId').value = id;
+    const exam = getExams().find(e => e.id===id);
     if(exam){
-      document.getElementById('examYear').value=exam.year;
-      document.getElementById('examRound').value=exam.round;
-      document.getElementById('examDate').value=exam.date;
-      const s=exam.sections||{};
-      SECTION_DEFS.forEach(d=>{
-        const sec=s[d.key]||{};
-        if(sec.correct!==undefined) document.getElementById('sec_'+d.key).value=sec.correct;
-        if(sec.total!==undefined) document.getElementById('secT_'+d.key).value=sec.total;
-        if(sec.reviewed) document.getElementById('secRev_'+d.key).checked=true;
-        if(sec.reviewDate) document.getElementById('secRevDate_'+d.key).value=sec.reviewDate;
+      document.getElementById('examYear').value = exam.year;
+      document.getElementById('examRound').value = exam.round;
+      document.getElementById('examDate').value = exam.date;
+      const s = exam.sections||{};
+      SECTION_DEFS.forEach(d => {
+        const sec = s[d.key]||{};
+        if(sec.correct !== undefined) document.getElementById('sec_'+d.key).value = sec.correct;
+        if(sec.total   !== undefined) document.getElementById('secT_'+d.key).value = sec.total;
+        if(sec.reviewed)              document.getElementById('secRev_'+d.key).checked = true;
+        if(sec.reviewDate)            document.getElementById('secRevDate_'+d.key).value = sec.reviewDate;
       });
-      ['w4a','w4b'].forEach(id=>{
-        const wr=s[id]||{};
-        WRITING_KEYS.forEach(k=>{
-          if(wr[k]!==undefined) document.getElementById(`rub_${id}_${k}`).value=wr[k];
+      ['w4a','w4b'].forEach(wid => {
+        const wr = s[wid]||{};
+        WRITING_KEYS.forEach(k => {
+          if(wr[k] !== undefined) document.getElementById(`rub_${wid}_${k}`).value = wr[k];
         });
       });
       calcExamTotal();
     }
   } else {
-    document.getElementById('examModalTitle').textContent='📝 過去問を記録';
-    document.getElementById('editExamId').value='';
+    document.getElementById('examModalTitle').textContent = '📝 過去問を記録';
+    document.getElementById('editExamId').value = '';
   }
   document.getElementById('examModalOverlay').classList.remove('hidden');
 }
+
 function closeExamModal(){
   document.getElementById('examModalOverlay').classList.add('hidden');
 }
