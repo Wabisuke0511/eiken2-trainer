@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="英検2級">
+<meta name="mobile-web-app-capable" content="yes">
+<title>英検2級トレーナー</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f6fb;--surface:#ffffff;--surface2:#eef1f9;--accent:#3b5bdb;
+  --ink:#1e3a5f;--ink2:#475569;--ink3:#94a3b8;--border:#dde3f0;
+  --green:#2f9e44;--orange:#e67700;--red:#c92a2a;--purple:#6741d9;
+  --tab-h:60px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#0d1421;--surface:#162035;--surface2:#1c2a42;--accent:#748ffc;
+    --ink:#e2e8f5;--ink2:#94a3b8;--ink3:#475569;--border:#253349;
+    --green:#40c057;--orange:#fd7e14;--red:#ff6b6b;--purple:#9775fa;
+  }
+}
+body{font-family:'Hiragino Kaku Gothic ProN','Yu Gothic UI','Meiryo',system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);min-height:100vh;
+  padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom))}
+
+/* ===== Tab system ===== */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--tab-h) + env(safe-area-inset-bottom));
+  background:var(--surface);border-top:1px solid var(--border);display:flex;
+  padding-bottom:env(safe-area-inset-bottom);z-index:100;
+  box-shadow:0 -2px 12px rgba(0,0,0,.08)}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;border:none;background:none;color:var(--ink3);font-size:.65rem;cursor:pointer;
+  font-family:inherit;transition:.15s;padding:6px 4px 4px}
+.tab-btn.active{color:var(--accent)}
+.tab-btn .tab-icon{font-size:1.3rem;line-height:1}
+.tab-pane{display:none;padding:16px 16px 8px;max-width:640px;margin:0 auto}
+.tab-pane.active{display:block}
+
+/* ===== Cards ===== */
+.card{background:var(--surface);border-radius:12px;border:1px solid var(--border);
+  padding:16px;margin-bottom:12px}
+.card-title{font-size:.8rem;font-weight:700;color:var(--ink3);text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:10px}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 18px;border-radius:8px;border:none;font-size:.9rem;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:.15s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--surface2);color:var(--ink);border:1px solid var(--border)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-sm{padding:6px 12px;font-size:.8rem;border-radius:6px}
+.btn-full{width:100%}
+
+/* ===== Form ===== */
+.form-row{display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
+.form-label{font-size:.82rem;font-weight:600;color:var(--ink2);min-width:60px}
+.form-input{padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+  font-size:.9rem;background:var(--surface);color:var(--ink);font-family:inherit;
+  outline:none;flex:1;min-width:80px}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,91,219,.15)}
+.form-select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+  font-size:.9rem;background:var(--surface);color:var(--ink);font-family:inherit;
+  outline:none;flex:1}
+.form-select:focus{border-color:var(--accent)}
+
+/* ===== Header sync status ===== */
+.header{padding:12px 16px 0;max-width:640px;margin:0 auto;display:flex;
+  align-items:center;justify-content:space-between;gap:8px}
+.header-title{font-size:1.1rem;font-weight:800;color:var(--accent)}
+.sync-badge{font-size:.72rem;padding:3px 8px;border-radius:20px;white-space:nowrap}
+.sync-badge.ok{background:rgba(47,158,68,.15);color:var(--green)}
+.sync-badge.syncing{background:rgba(230,119,0,.15);color:var(--orange)}
+.sync-badge.offline{background:rgba(148,163,184,.15);color:var(--ink3)}
+.countdown{font-size:.8rem;color:var(--orange);font-weight:700}
+
+/* ===== KPI tiles ===== */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi-tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px 10px;text-align:center}
+.kpi-val{font-size:1.5rem;font-weight:800;color:var(--accent)}
+.kpi-label{font-size:.68rem;color:var(--ink3);margin-top:2px}
+
+/* ===== Section score table ===== */
+.score-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.score-table th{text-align:left;color:var(--ink3);font-weight:600;padding:4px 6px;
+  border-bottom:1px solid var(--border)}
+.score-table td{padding:5px 6px;border-bottom:1px solid var(--border)}
+.score-table .pct{font-weight:700;color:var(--accent)}
+.pct-bar-wrap{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;min-width:60px}
+.pct-bar{height:100%;border-radius:4px;transition:width .3s;background:var(--accent)}
+
+/* ===== Exam list ===== */
+.exam-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;margin-bottom:8px}
+.exam-item-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.exam-item-title{font-weight:700;font-size:.9rem;color:var(--ink)}
+.exam-item-meta{font-size:.75rem;color:var(--ink3)}
+.exam-item-actions{display:flex;gap:6px}
+.exam-total{font-size:1.2rem;font-weight:800;color:var(--accent)}
+
+/* ===== Modal ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;
+  display:flex;align-items:flex-end;justify-content:center}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;padding:24px 20px;
+  width:100%;max-width:640px;max-height:90vh;overflow-y:auto;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.modal-title{font-size:1rem;font-weight:800;color:var(--ink);margin-bottom:16px}
+.modal-actions{display:flex;gap:10px;margin-top:16px}
+
+/* ===== Flashcard ===== */
+.fc-overlay{position:fixed;inset:0;background:var(--bg);z-index:300;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.fc-overlay.hidden{display:none}
+.fc-progress{font-size:.8rem;color:var(--ink3);margin-bottom:12px}
+.fc-card{width:100%;max-width:420px;min-height:240px;background:var(--surface);
+  border:1px solid var(--border);border-radius:20px;padding:28px 24px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;transition:.3s;text-align:center;position:relative}
+.fc-word{font-size:2rem;font-weight:800;color:var(--ink);margin-bottom:8px}
+.fc-hint{font-size:.8rem;color:var(--ink3)}
+.fc-meaning{font-size:1.2rem;color:var(--accent);font-weight:700;margin-bottom:6px}
+.fc-pos{font-size:.8rem;color:var(--ink3);margin-bottom:8px}
+.fc-example{font-size:.85rem;color:var(--ink2);font-style:italic;margin-bottom:4px}
+.fc-back{display:none}
+.fc-card.flipped .fc-front{display:none}
+.fc-card.flipped .fc-back{display:block;width:100%}
+.fc-actions{display:flex;gap:10px;margin-top:20px;width:100%;max-width:420px}
+.fc-actions .btn{flex:1;font-size:1rem;padding:12px}
+.fc-btn-ok{background:var(--green);color:#fff}
+.fc-btn-maybe{background:var(--orange);color:#fff}
+.fc-btn-miss{background:var(--red);color:#fff}
+.fc-sound{position:absolute;top:12px;right:12px;background:none;border:none;
+  font-size:1.2rem;cursor:pointer;color:var(--ink3)}
+
+/* ===== Word list ===== */
+.word-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px}
+.word-marker{width:10px;min-width:10px;height:10px;border-radius:50%;margin-top:5px}
+.word-info{flex:1;min-width:0}
+.word-eng{font-weight:700;font-size:.95rem;color:var(--ink)}
+.word-jp{font-size:.82rem;color:var(--ink2);margin-top:2px}
+.word-srs{font-size:.7rem;color:var(--ink3);margin-top:2px}
+.word-actions{display:flex;gap:4px;align-items:center}
+.tag-badge{display:inline-block;font-size:.65rem;padding:2px 6px;border-radius:10px;
+  background:var(--surface2);color:var(--ink3);margin-right:3px}
+.marker-yellow{background:#ffe066}
+.marker-pink{background:#ffa8c5}
+.marker-green{background:#69db7c}
+.marker-blue{background:#74c0fc}
+.marker-orange{background:#ffa94d}
+.marker-none{background:var(--ink3)}
+
+/* ===== Confirm table ===== */
+.confirm-table-wrap{overflow-x:auto;margin-top:12px}
+.confirm-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.confirm-table th{background:var(--surface2);padding:6px 8px;text-align:left;
+  font-size:.75rem;color:var(--ink3);border-bottom:1px solid var(--border)}
+.confirm-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.confirm-table td[contenteditable]{outline:none;border-radius:4px}
+.confirm-table td[contenteditable]:focus{background:var(--surface2)}
+.confirm-table tr.empty-meaning td{border:1px solid var(--red) !important}
+.confirm-table input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+
+/* ===== Writing rubric ===== */
+.rubric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+.rubric-item{text-align:center}
+.rubric-label{font-size:.7rem;color:var(--ink3);margin-bottom:4px}
+.rubric-val{font-size:1.1rem;font-weight:700;color:var(--accent)}
+.rubric-input{width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;
+  text-align:center;font-size:1rem;background:var(--surface);color:var(--ink);
+  font-family:inherit}
+
+/* ===== Charts ===== */
+.chart-wrap{position:relative;width:100%;max-width:560px;margin:0 auto}
+.chart-title{font-size:.8rem;font-weight:700;color:var(--ink3);margin-bottom:8px;
+  text-transform:uppercase;letter-spacing:.04em}
+.chart-tab-row{display:flex;gap:6px;margin-bottom:8px}
+.chart-tab{padding:4px 10px;border-radius:20px;border:1px solid var(--border);
+  font-size:.75rem;background:none;color:var(--ink3);cursor:pointer;font-family:inherit}
+.chart-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ===== Settings ===== */
+.setting-row{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0;border-bottom:1px solid var(--border);gap:12px}
+.setting-label{font-size:.9rem;color:var(--ink);font-weight:600}
+.setting-desc{font-size:.75rem;color:var(--ink3);margin-top:2px}
+.setting-control{flex-shrink:0}
+
+/* ===== Chip (tags) ===== */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{padding:4px 10px;border-radius:20px;border:1px solid var(--border);
+  font-size:.75rem;background:none;color:var(--ink3);cursor:pointer;font-family:inherit}
+.chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ===== Spinner ===== */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Misc ===== */
+.empty-state{text-align:center;color:var(--ink3);font-size:.9rem;padding:40px 20px}
+.review-check{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink2)}
+input[type=checkbox]{accent-color:var(--accent)}
+.pct-display{font-size:1rem;font-weight:700;color:var(--accent);min-width:40px;text-align:right}
+.total-pct{text-align:center;font-size:1.4rem;font-weight:800;color:var(--accent);
+  margin:12px 0 4px}
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:1.2rem;font-weight:800;color:var(--ink);text-align:center;pointer-events:none}
+.section-totals-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div class="header">
+  <div>
+    <div class="header-title">英検2級トレーナー</div>
+    <div id="countdown" class="countdown"></div>
+  </div>
+  <span id="syncBadge" class="sync-badge offline">オフライン</span>
+</div>
+
+<!-- ===== TAB PANES ===== -->
+
+<!-- 単語タブ -->
+<div id="pane-words" class="tab-pane active">
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <input id="wordSearch" class="form-input" placeholder="🔍 検索" style="flex:1;min-width:120px">
+    <button class="btn btn-primary btn-sm" onclick="openAddWordModal()">＋ 追加</button>
+    <button class="btn btn-secondary btn-sm" onclick="startTodayStudy()">📚 今日の学習</button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('photoInput').click()">📷 写真から取り込む</button>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
+  </div>
+  <div id="wordTagFilter" class="chip-row" style="margin-bottom:10px"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <span style="font-size:.75rem;color:var(--ink3)">ソート:</span>
+    <select id="wordSort" class="form-select" style="flex:none;width:auto;font-size:.8rem" onchange="renderWordList()">
+      <option value="nextDate">学習日順</option>
+      <option value="wrongRate">誤答率順</option>
+      <option value="added">追加順</option>
+    </select>
+  </div>
+  <div id="wordList"></div>
+</div>
+
+<!-- 演習タブ -->
+<div id="pane-exam" class="tab-pane">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:.9rem;font-weight:700;color:var(--ink)">過去問記録</div>
+    <button class="btn btn-primary btn-sm" onclick="openExamModal()">＋ 記録する</button>
+  </div>
+  <div id="examList"></div>
+</div>
+
+<!-- グラフタブ -->
+<div id="pane-graph" class="tab-pane">
+  <div class="kpi-row" id="kpiRow"></div>
+  <div class="card">
+    <div class="chart-title">分野別正答率の推移</div>
+    <div class="chart-wrap"><canvas id="chartTrend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">直近回レーダー</div>
+    <div class="chart-wrap" style="max-width:300px"><canvas id="chartRadar"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">合計正答率の推移</div>
+    <div class="chart-wrap"><canvas id="chartTotal"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">ライティング観点別スコア推移</div>
+    <div class="chart-tab-row">
+      <button class="chart-tab active" id="wtabA" onclick="switchWritingTab('A')">英文要約</button>
+      <button class="chart-tab" id="wtabB" onclick="switchWritingTab('B')">意見論述</button>
+    </div>
+    <div class="chart-wrap"><canvas id="chartWriting"></canvas></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card">
+      <div class="chart-title">解き直し進捗</div>
+      <div class="chart-wrap" style="max-width:180px;position:relative">
+        <canvas id="chartReview"></canvas>
+        <div class="donut-center" id="reviewCenter"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-title">単語習得状況</div>
+      <div class="chart-wrap" style="max-width:180px">
+        <canvas id="chartWords"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 設定タブ -->
+<div id="pane-settings" class="tab-pane">
+  <div class="card">
+    <div class="card-title">プロフィール</div>
+    <div class="setting-row">
+      <div><div class="setting-label">ユーザー名</div>
+        <div class="setting-desc" id="userNameDisplay">未設定</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="openUserNameModal(true)">変更</button>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">受験予定日</div>
+        <div class="setting-desc">カウントダウン表示に使用</div></div>
+      <input type="date" id="settingExamDate" class="form-input" style="flex:none;width:auto"
+        onchange="saveSetting('examDate',this.value);updateCountdown();syncSettings()">
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">目標正答率</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="settingTargetRate" class="form-input" style="width:70px" min="0" max="100"
+          onchange="saveSetting('targetRate',+this.value);renderGraphs()">
+        <span style="font-size:.85rem;color:var(--ink3)">%</span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">各分野の満点</div>
+    <div id="sectionTotalsForm" class="section-totals-grid"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">データ管理</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-secondary btn-full" onclick="exportData()">📤 エクスポート (JSON)</button>
+      <label class="btn btn-secondary btn-full" style="cursor:pointer">
+        📥 インポート (JSON)
+        <input type="file" accept=".json" style="display:none" onchange="importData(this)">
+      </label>
+      <button class="btn btn-danger btn-full" onclick="confirmDeleteAll()">🗑 全データ削除</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Supabase 設定</div>
+    <div class="form-row">
+      <label class="form-label" style="min-width:80px">URL</label>
+      <input id="cfgUrl" class="form-input" placeholder="https://xxx.supabase.co"
+        onchange="saveSupabaseCfg()">
+    </div>
+    <div class="form-row">
+      <label class="form-label" style="min-width:80px">Anon Key</label>
+      <input id="cfgKey" class="form-input" placeholder="eyJ..." onchange="saveSupabaseCfg()">
+    </div>
+    <button class="btn btn-primary btn-sm btn-full" onclick="initSupabase();pullFromSupabase()">接続テスト / 同期</button>
+  </div>
+</div>
+
+<!-- ===== TAB BAR ===== -->
+<nav class="tab-bar">
+  <button class="tab-btn active" id="tab-words" onclick="switchTab('words')">
+    <span class="tab-icon">📖</span><span>単語</span>
+  </button>
+  <button class="tab-btn" id="tab-exam" onclick="switchTab('exam')">
+    <span class="tab-icon">📝</span><span>演習</span>
+  </button>
+  <button class="tab-btn" id="tab-graph" onclick="switchTab('graph')">
+    <span class="tab-icon">📊</span><span>グラフ</span>
+  </button>
+  <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')">
+    <span class="tab-icon">⚙️</span><span>設定</span>
+  </button>
+</nav>
+
+<!-- ===== USERNAME MODAL ===== -->
+<div id="userNameOverlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-title">👤 ユーザー名を設定</div>
+    <p style="font-size:.85rem;color:var(--ink2);margin-bottom:14px">
+      Supabase へのデータ保存に使われます。他のデバイスで同じ名前を設定すると、データが同期されます。
+    </p>
+    <input id="userNameInput" class="form-input" placeholder="例: Taro" maxlength="30">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="userNameCancelBtn" onclick="closeUserNameModal()">キャンセル</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmUserName()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EXAM MODAL ===== -->
+<div id="examModalOverlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-title" id="examModalTitle">📝 過去問を記録</div>
+    <input type="hidden" id="editExamId">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div>
+        <div class="form-label" style="margin-bottom:4px">年度</div>
+        <select id="examYear" class="form-select">
+          <option>2024</option><option>2025</option><option selected>2026</option><option>2027</option>
+        </select>
+      </div>
+      <div>
+        <div class="form-label" style="margin-bottom:4px">回</div>
+        <select id="examRound" class="form-select">
+          <option>第1回</option><option>第2回</option><option>第3回</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">実施日</label>
+      <input type="date" id="examDate" class="form-input">
+    </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:8px">📖 筆記</div>
+    <div id="sectionInputsWrite"></div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:8px">🎧 リスニング</div>
+    <div id="sectionInputsListen"></div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:8px">✍️ ライティング（英文要約）</div>
+    <div id="rubricInputA"></div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:8px">✍️ ライティング（意見論述）</div>
+    <div id="rubricInputB"></div>
+    <div class="total-pct" id="examTotalDisplay">合計 --%</div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeExamModal()">キャンセル</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveExam()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WORD MODAL ===== -->
+<div id="wordModalOverlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-title" id="wordModalTitle">単語を追加</div>
+    <input type="hidden" id="editWordId">
+    <div class="form-row">
+      <label class="form-label">英単語</label>
+      <input id="wInpWord" class="form-input" placeholder="例: acquire">
+    </div>
+    <div class="form-row">
+      <label class="form-label">意味</label>
+      <input id="wInpMeaning" class="form-input" placeholder="例: 取得する">
+    </div>
+    <div class="form-row">
+      <label class="form-label">品詞</label>
+      <select id="wInpPos" class="form-select" style="flex:none;width:auto">
+        <option>動詞</option><option>名詞</option><option>形容詞</option>
+        <option>副詞</option><option>前置詞</option><option>熟語</option><option>その他</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">例文</label>
+      <input id="wInpExample" class="form-input" placeholder="例: He acquired new skills.">
+    </div>
+    <div class="form-row">
+      <label class="form-label">マーカー色</label>
+      <select id="wInpMarker" class="form-select" style="flex:none;width:auto">
+        <option value="">なし</option>
+        <option value="yellow">黄</option><option value="pink">ピンク</option>
+        <option value="green">緑</option><option value="blue">青</option>
+        <option value="orange">オレンジ</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">タグ</label>
+      <input id="wInpTags" class="form-input" placeholder="カンマ区切り 例: 動詞,頻出">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeWordModal()">キャンセル</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveWord()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PHOTO CONFIRM MODAL ===== -->
+<div id="photoModalOverlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-title">📷 取り込み確認</div>
+    <p style="font-size:.82rem;color:var(--ink2);margin-bottom:8px">
+      内容を確認・編集してから登録してください。☑ がついた行だけ登録されます。
+    </p>
+    <div id="photoLoadingMsg" style="text-align:center;padding:20px 0">
+      <div class="spinner" style="margin:0 auto 8px"></div>
+      <div style="font-size:.85rem;color:var(--ink3)">AIが解析中...</div>
+    </div>
+    <div id="photoConfirmWrap" style="display:none">
+      <div class="confirm-table-wrap">
+        <table class="confirm-table" id="confirmTable">
+          <thead>
+            <tr>
+              <th style="width:28px"><input type="checkbox" id="checkAll" onchange="toggleAllConfirm(this)"></th>
+              <th>英単語</th><th>意味</th><th>品詞</th><th>例文</th><th>色</th>
+            </tr>
+          </thead>
+          <tbody id="confirmTbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;font-size:.82rem;color:var(--ink3)" id="confirmDupInfo"></div>
+    </div>
+    <div id="photoErrorMsg" style="display:none;font-size:.85rem;color:var(--red);padding:16px 0"></div>
+    <div class="modal-actions" id="photoModalActions" style="display:none">
+      <button class="btn btn-secondary" onclick="closePhotoModal()">キャンセル</button>
+      <button class="btn btn-primary" style="flex:1" id="confirmImportBtn" onclick="confirmImportWords()">選択した件を登録</button>
+    </div>
+    <button class="btn btn-secondary btn-full" id="photoCloseSingleBtn" onclick="closePhotoModal()" style="margin-top:8px;display:none">閉じる</button>
+  </div>
+</div>
+
+<!-- ===== FLASHCARD OVERLAY ===== -->
+<div id="fcOverlay" class="fc-overlay hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:420px;margin-bottom:8px">
+    <button class="btn btn-secondary btn-sm" onclick="closeFc()">✕ 終了</button>
+    <div class="fc-progress" id="fcProgress"></div>
+  </div>
+  <div class="fc-card" id="fcCard" onclick="flipCard()">
+    <button class="fc-sound" id="fcSoundBtn" onclick="event.stopPropagation();speakWord()" title="発音">🔊</button>
+    <div class="fc-front">
+      <div class="fc-word" id="fcWord"></div>
+      <div class="fc-hint">タップして裏返す</div>
+    </div>
+    <div class="fc-back">
+      <div class="fc-meaning" id="fcMeaning"></div>
+      <div class="fc-pos" id="fcPos"></div>
+      <div class="fc-example" id="fcExample"></div>
+    </div>
+  </div>
+  <div class="fc-actions" id="fcActions" style="display:none">
+    <button class="btn fc-btn-miss" onclick="judgeCard('miss')">❌ 忘れた</button>
+    <button class="btn fc-btn-maybe" onclick="judgeCard('maybe')">🔺 あいまい</button>
+    <button class="btn fc-btn-ok" onclick="judgeCard('ok')">⭕ 覚えた</button>
+  </div>
+  <div id="fcDone" style="display:none;text-align:center;margin-top:20px">
+    <div style="font-size:1.3rem;font-weight:800;color:var(--accent);margin-bottom:8px">お疲れさまでした！🎉</div>
+    <div id="fcDoneStat" style="font-size:.9rem;color:var(--ink2);margin-bottom:16px"></div>
+    <button class="btn btn-primary" onclick="closeFc()">閉じる</button>
+  </div>
+</div>
+
+<script>
+// =============================================
+// CONSTANTS & STATE
+// =============================================
+const SUPABASE_URL_KEY = 'eiken2_sbUrl';
+const SUPABASE_KEY_KEY = 'eiken2_sbKey';
+const EXAMS_KEY = 'eiken2_exams';
+const WORDS_KEY = 'eiken2_words';
+const SETTINGS_KEY = 'eiken2_settings';
+const USERNAME_KEY = 'eiken2_userName';
+
+const SECTION_DEFS = [
+  { key:'w1', label:'筆記1 短文空所補充', defaultTotal:17 },
+  { key:'w2', label:'筆記2 長文空所補充', defaultTotal:6 },
+  { key:'w3', label:'筆記3 長文内容一致', defaultTotal:8 },
+  { key:'l1', label:'リスニング第1部', defaultTotal:15 },
+  { key:'l2', label:'リスニング第2部', defaultTotal:15 },
+];
+const WRITING_KEYS = ['content','structure','vocab','grammar'];
+const WRITING_LABELS = ['内容','構成','語彙','文法'];
+const SRS_INTERVALS = [1,3,7,14,30,60];
+const MARKER_COLORS = {yellow:'#ffe066',pink:'#ffa8c5',green:'#69db7c',blue:'#74c0fc',orange:'#ffa94d'};
+
+let sbClient = null;
+let currentFcQueue = [];
+let currentFcIdx = 0;
+let currentFcStats = {ok:0,maybe:0,miss:0};
+let activeWritingTab = 'A';
+let chartInstances = {};
+let activeTagFilter = null;
+
+// =============================================
+// TABS
+// =============================================
+function switchTab(name){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pane-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='graph') renderGraphs();
+  if(name==='words') renderWordList();
+}
+
+// =============================================
+// SETTINGS
+// =============================================
+function getSettings(){
+  try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}'); }catch(e){return {};}
+}
+function saveSetting(key,val){
+  const s=getSettings(); s[key]=val; localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));
+}
+function getSectionTotals(){
+  const s=getSettings();
+  const t=s.sectionTotals||{};
+  const res={};
+  SECTION_DEFS.forEach(d=>{ res[d.key]=t[d.key]||d.defaultTotal; });
+  return res;
+}
+function getUserName(){ return localStorage.getItem(USERNAME_KEY)||''; }
+
+function loadSettingsUI(){
+  const s=getSettings();
+  const nameEl=document.getElementById('userNameDisplay');
+  const name=getUserName();
+  if(nameEl) nameEl.textContent=name||'（未設定）';
+  if(s.examDate) document.getElementById('settingExamDate').value=s.examDate;
+  document.getElementById('settingTargetRate').value=s.targetRate||70;
+  renderSectionTotalsForm();
+  const cfgUrl=localStorage.getItem(SUPABASE_URL_KEY)||'';
+  const cfgKey=localStorage.getItem(SUPABASE_KEY_KEY)||'';
+  document.getElementById('cfgUrl').value=cfgUrl;
+  document.getElementById('cfgKey').value=cfgKey;
+  updateCountdown();
+}
+
+function renderSectionTotalsForm(){
+  const s=getSettings(); const t=s.sectionTotals||{};
+  const form=document.getElementById('sectionTotalsForm');
+  form.innerHTML=SECTION_DEFS.map(d=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-size:.78rem;color:var(--ink2);flex:1">${d.label}</span>
+      <input type="number" min="1" max="50" value="${t[d.key]||d.defaultTotal}"
+        class="form-input" style="width:60px"
+        onchange="saveSectionTotal('${d.key}',+this.value)">
+      <span style="font-size:.8rem;color:var(--ink3)">点</span>
+    </div>`).join('');
+}
+function saveSectionTotal(key,val){
+  const s=getSettings(); if(!s.sectionTotals)s.sectionTotals={};
+  s.sectionTotals[key]=val; localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));
+  syncSettings();
+}
+function saveSupabaseCfg(){
+  localStorage.setItem(SUPABASE_URL_KEY,document.getElementById('cfgUrl').value.trim());
+  localStorage.setItem(SUPABASE_KEY_KEY,document.getElementById('cfgKey').value.trim());
+  initSupabase();
+}
+
+function updateCountdown(){
+  const s=getSettings(); const el=document.getElementById('countdown');
+  if(!s.examDate){el.textContent='';return;}
+  const diff=Math.ceil((new Date(s.examDate)-new Date())/86400000);
+  el.textContent=diff>0?`受験まであと ${diff} 日`:diff===0?'今日が受験日！':'受験日を過ぎています';
+}
+
+// =============================================
+// USERNAME MODAL
+// =============================================
+let _isChangeUser=false;
+function openUserNameModal(isChange){
+  _isChangeUser=isChange;
+  document.getElementById('userNameInput').value=isChange?getUserName():'';
+  document.getElementById('userNameCancelBtn').style.display=isChange?'':'none';
+  document.getElementById('userNameOverlay').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('userNameInput').focus(),100);
+}
+function closeUserNameModal(){
+  document.getElementById('userNameOverlay').classList.add('hidden');
+}
+function confirmUserName(){
+  const val=document.getElementById('userNameInput').value.trim();
+  if(!val){document.getElementById('userNameInput').focus();return;}
+  localStorage.setItem(USERNAME_KEY,val);
+  closeUserNameModal();
+  loadSettingsUI();
+  initSupabase();
+  pullFromSupabase();
+}
+
+// =============================================
+// EXAM MODAL
+// =============================================
+function buildSectionInputs(){
+  const totals=getSectionTotals();
+  const writeDefs=SECTION_DEFS.filter(d=>d.key.startsWith('w'));
+  const listenDefs=SECTION_DEFS.filter(d=>d.key.startsWith('l'));
+  function row(d){
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:.82rem;color:var(--ink2);min-width:130px">${d.label}</span>
+      <input type="number" min="0" max="${totals[d.key]}" id="sec_${d.key}"
+        class="form-input" style="width:60px" placeholder="0" oninput="calcExamTotal()">
+      <span style="font-size:.82rem;color:var(--ink3)">/
+        <input type="number" min="1" max="50" id="secT_${d.key}" value="${totals[d.key]}"
+          class="form-input" style="width:50px;display:inline-block" oninput="calcExamTotal()">
+      </span>
+      <span id="secPct_${d.key}" class="pct-display">--%</span>
+      <div style="flex:1;min-width:100%">
+        <label class="review-check">
+          <input type="checkbox" id="secRev_${d.key}"> 解き直し済み
+          <input type="date" id="secRevDate_${d.key}" class="form-input" style="width:auto;font-size:.75rem;margin-left:6px">
+        </label>
+      </div>
+    </div>`;
+  }
+  document.getElementById('sectionInputsWrite').innerHTML=writeDefs.map(row).join('');
+  document.getElementById('sectionInputsListen').innerHTML=listenDefs.map(row).join('');
+
+  function rubric(id){
+    return `<div class="rubric-grid">${WRITING_KEYS.map((k,i)=>`
+      <div class="rubric-item">
+        <div class="rubric-label">${WRITING_LABELS[i]}</div>
+        <input type="number" min="0" max="4" class="rubric-input" id="rub_${id}_${k}"
+          placeholder="-" oninput="calcExamTotal()">
+      </div>`).join('')}</div>`;
+  }
+  document.getElementById('rubricInputA').innerHTML=rubric('w4a');
+  document.getElementById('rubricInputB').innerHTML=rubric('w4b');
+}
+
+function calcExamTotal(){
+  const totals=getSectionTotals();
+  let correct=0,total=0;
+  SECTION_DEFS.forEach(d=>{
+    const c=+document.getElementById('sec_'+d.key)?.value||0;
+    const t=+document.getElementById('secT_'+d.key)?.value||totals[d.key];
+    correct+=c; total+=t;
+    const pctEl=document.getElementById('secPct_'+d.key);
+    if(pctEl) pctEl.textContent=t>0?Math.round(c/t*100)+'%':'--';
+  });
+  ['w4a','w4b'].forEach(id=>{
+    WRITING_KEYS.forEach(k=>{
+      const v=+document.getElementById(`rub_${id}_${k}`)?.value||0;
+      correct+=v; total+=4;
+    });
+  });
+  const pct=total>0?Math.round(correct/total*100):0;
+  document.getElementById('examTotalDisplay').textContent=`合計 ${pct}%（${correct}/${total}点）`;
+}
+
+function openExamModal(id){
+  buildSectionInputs();
+  document.getElementById('examDate').value=new Date().toISOString().split('T')[0];
+  if(id){
+    document.getElementById('examModalTitle').textContent='📝 過去問を編集';
+    document.getElementById('editExamId').value=id;
+    const exam=getExams().find(e=>e.id===id);
+    if(exam){
+      document.getElementById('examYear').value=exam.year;
+      document.getElementById('examRound').value=exam.round;
+      document.getElementById('examDate').value=exam.date;
+      const s=exam.sections||{};
+      SECTION_DEFS.forEach(d=>{
+        const sec=s[d.key]||{};
+        if(sec.correct!==undefined) document.getElementById('sec_'+d.key).value=sec.correct;
+        if(sec.total!==undefined) document.getElementById('secT_'+d.key).value=sec.total;
+        if(sec.reviewed) document.getElementById('secRev_'+d.key).checked=true;
+        if(sec.reviewDate) document.getElementById('secRevDate_'+d.key).value=sec.reviewDate;
+      });
+      ['w4a','w4b'].forEach(id=>{
+        const wr=s[id]||{};
+        WRITING_KEYS.forEach(k=>{
+          if(wr[k]!==undefined) document.getElementById(`rub_${id}_${k}`).value=wr[k];
+        });
+      });
+      calcExamTotal();
+    }
+  } else {
+    document.getElementById('examModalTitle').textContent='📝 過去問を記録';
+    document.getElementById('editExamId').value='';
+  }
+  document.getElementById('examModalOverlay').classList.remove('hidden');
+}
+function closeExamModal(){
+  document.getElementById('examModalOverlay').classList.add('hidden');
+}
+
+function getExams(){
+  try{return JSON.parse(localStorage.getItem(EXAMS_KEY)||'[]');}catch(e){return [];}
+}
+function saveExams(arr){ localStorage.setItem(EXAMS_KEY,JSON.stringify(arr)); }
+
+function saveExam(){
+  const sections={};
+  SECTION_DEFS.forEach(d=>{
+    sections[d.key]={
+      correct:+document.getElementById('sec_'+d.key)?.value||0,
+      total:+document.getElementById('secT_'+d.key)?.value||getSectionTotals()[d.key],
+      reviewed:document.getElementById('secRev_'+d.key)?.checked||false,
+      reviewDate:document.getElementById('secRevDate_'+d.key)?.value||'',
+    };
+  });
+  ['w4a','w4b'].forEach(id=>{
+    const obj={};
+    WRITING_KEYS.forEach(k=>{ obj[k]=+document.getElementById(`rub_${id}_${k}`)?.value||0; });
+    sections[id]=obj;
+  });
+  const idStr=document.getElementById('editExamId').value;
+  const exam={
+    id:idStr?+idStr:Date.now(),
+    year:document.getElementById('examYear').value,
+    round:document.getElementById('examRound').value,
+    date:document.getElementById('examDate').value,
+    sections,
+  };
+  const arr=getExams().filter(e=>e.id!==exam.id);
+  arr.unshift(exam);
+  saveExams(arr);
+  closeExamModal();
+  renderExamList();
+  syncExams();
+}
+
+function deleteExam(id){
+  if(!confirm('この記録を削除しますか？'))return;
+  saveExams(getExams().filter(e=>e.id!==id));
+  renderExamList();
+  syncExams();
+}
+
+function calcExamScore(exam){
+  let correct=0,total=0;
+  const s=exam.sections||{};
+  SECTION_DEFS.forEach(d=>{
+    const sec=s[d.key]||{};
+    correct+=(sec.correct||0);
+    total+=(sec.total||getSectionTotals()[d.key]);
+  });
+  ['w4a','w4b'].forEach(id=>{
+    const wr=s[id]||{};
+    WRITING_KEYS.forEach(k=>{ correct+=(wr[k]||0); total+=4; });
+  });
+  return {correct,total,pct:total>0?Math.round(correct/total*100):0};
+}
+
+function renderExamList(){
+  const exams=getExams();
+  const el=document.getElementById('examList');
+  if(!exams.length){
+    el.innerHTML='<div class="empty-state">まだ記録がありません。<br>右上のボタンで記録を追加しましょう。</div>';
+    return;
+  }
+  el.innerHTML=exams.map(exam=>{
+    const{pct,correct,total}=calcExamScore(exam);
+    const reviewed=SECTION_DEFS.filter(d=>exam.sections?.[d.key]?.reviewed).length;
+    return `<div class="exam-item">
+      <div class="exam-item-head">
+        <div>
+          <div class="exam-item-title">${exam.year}年度 ${exam.round}</div>
+          <div class="exam-item-meta">${exam.date} ／ 解き直し ${reviewed}/${SECTION_DEFS.length}分野</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="exam-total">${pct}%</div>
+          <div class="exam-item-actions">
+            <button class="btn btn-secondary btn-sm" onclick="openExamModal(${exam.id})">✏️</button>
+            <button class="btn btn-secondary btn-sm" onclick="deleteExam(${exam.id})">🗑</button>
+          </div>
+        </div>
+      </div>
+      <div class="score-table-wrap">
+        <table class="score-table">
+          <tr><th>分野</th><th>正答</th><th>正答率</th><th></th></tr>
+          ${SECTION_DEFS.map(d=>{
+            const sec=exam.sections?.[d.key]||{};
+            const c=sec.correct||0,t=sec.total||getSectionTotals()[d.key];
+            const p=t>0?Math.round(c/t*100):0;
+            return `<tr>
+              <td style="font-size:.8rem">${d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS')}</td>
+              <td>${c}/${t}</td>
+              <td class="pct">${p}%</td>
+              <td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${p}%"></div></div></td>
+            </tr>`;
+          }).join('')}
+          <tr><td colspan="4" style="font-size:.8rem;color:var(--ink3);padding-top:4px">
+            ライティング: 要約 ${['content','structure','vocab','grammar'].map(k=>exam.sections?.w4a?.[k]||0).join('/')}
+            ／ 意見 ${['content','structure','vocab','grammar'].map(k=>exam.sections?.w4b?.[k]||0).join('/')}
+          </td></tr>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =============================================
+// WORDS
+// =============================================
+function getWords(){
+  try{return JSON.parse(localStorage.getItem(WORDS_KEY)||'[]');}catch(e){return [];}
+}
+function saveWords(arr){ localStorage.setItem(WORDS_KEY,JSON.stringify(arr)); }
+
+function renderWordList(){
+  const words=getWords();
+  const q=document.getElementById('wordSearch')?.value.toLowerCase()||'';
+  const sort=document.getElementById('wordSort')?.value||'nextDate';
+  const today=todayStr();
+
+  // build tag filter
+  const allTags=[...new Set(words.flatMap(w=>w.tags||[]))];
+  const tagEl=document.getElementById('wordTagFilter');
+  if(tagEl){
+    tagEl.innerHTML=allTags.map(t=>`
+      <button class="chip${activeTagFilter===t?' active':''}" onclick="setTagFilter('${t}')">${t}</button>`).join('')
+      +(activeTagFilter?`<button class="chip" onclick="setTagFilter(null)">✕ 解除</button>`:'');
+  }
+
+  let filtered=words.filter(w=>{
+    if(q && !w.word.toLowerCase().includes(q) && !w.meaning.toLowerCase().includes(q)) return false;
+    if(activeTagFilter && !(w.tags||[]).includes(activeTagFilter)) return false;
+    return true;
+  });
+
+  if(sort==='wrongRate'){
+    filtered.sort((a,b)=>{
+      const ra=a.srs?.wrongCount/(a.srs?.wrongCount+a.srs?.correctCount+1)||0;
+      const rb=b.srs?.wrongCount/(b.srs?.wrongCount+b.srs?.correctCount+1)||0;
+      return rb-ra;
+    });
+  } else if(sort==='nextDate'){
+    filtered.sort((a,b)=>(a.srs?.nextDate||'')>=(b.srs?.nextDate||'')?1:-1);
+  } else {
+    filtered.sort((a,b)=>b.id-a.id);
+  }
+
+  const el=document.getElementById('wordList');
+  if(!filtered.length){
+    el.innerHTML='<div class="empty-state">単語がありません。</div>'; return;
+  }
+  const dueCount=words.filter(w=>(w.srs?.nextDate||today)<=today).length;
+  el.innerHTML=`<div style="font-size:.8rem;color:var(--ink3);margin-bottom:8px">
+    全 ${words.length} 語 ／ 今日の学習対象: <strong style="color:var(--accent)">${dueCount}</strong> 語
+  </div>`+filtered.map(w=>{
+    const srs=w.srs||{};
+    const statusLabel={'new':'🆕 未学習','learning':'📚 学習中','mastered':'✅ 習得'}[srs.status||'new'];
+    const markerClass=w.markerColor?`marker-${w.markerColor}`:'marker-none';
+    return `<div class="word-item">
+      <div class="word-marker ${markerClass}"></div>
+      <div class="word-info">
+        <div class="word-eng">${escHtml(w.word)}
+          <button onclick="speakWordStr('${escAttr(w.word)}')"
+            style="background:none;border:none;font-size:.9rem;cursor:pointer;color:var(--ink3);margin-left:4px">🔊</button>
+        </div>
+        <div class="word-jp">${escHtml(w.meaning)} <span style="color:var(--ink3)">${escHtml(w.pos||'')}</span></div>
+        <div class="word-srs">${statusLabel} ／ 次回: ${srs.nextDate||'-'} ／ ⭕${srs.correctCount||0} ❌${srs.wrongCount||0}</div>
+        ${(w.tags||[]).map(t=>`<span class="tag-badge">${escHtml(t)}</span>`).join('')}
+      </div>
+      <div class="word-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditWordModal(${w.id})">✏️</button>
+        <button class="btn btn-secondary btn-sm" onclick="deleteWord(${w.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setTagFilter(tag){ activeTagFilter=tag; renderWordList(); }
+
+function openAddWordModal(){
+  document.getElementById('wordModalTitle').textContent='単語を追加';
+  document.getElementById('editWordId').value='';
+  ['Word','Meaning','Example','Tags'].forEach(f=>document.getElementById('wInp'+f).value='');
+  document.getElementById('wInpPos').value='動詞';
+  document.getElementById('wInpMarker').value='';
+  document.getElementById('wordModalOverlay').classList.remove('hidden');
+}
+function openEditWordModal(id){
+  const w=getWords().find(w=>w.id===id); if(!w)return;
+  document.getElementById('wordModalTitle').textContent='単語を編集';
+  document.getElementById('editWordId').value=id;
+  document.getElementById('wInpWord').value=w.word;
+  document.getElementById('wInpMeaning').value=w.meaning;
+  document.getElementById('wInpPos').value=w.pos||'動詞';
+  document.getElementById('wInpExample').value=w.example||'';
+  document.getElementById('wInpMarker').value=w.markerColor||'';
+  document.getElementById('wInpTags').value=(w.tags||[]).join(',');
+  document.getElementById('wordModalOverlay').classList.remove('hidden');
+}
+function closeWordModal(){ document.getElementById('wordModalOverlay').classList.add('hidden'); }
+
+function saveWord(){
+  const word=document.getElementById('wInpWord').value.trim();
+  const meaning=document.getElementById('wInpMeaning').value.trim();
+  if(!word||!meaning){alert('英単語と意味は必須です');return;}
+  const idStr=document.getElementById('editWordId').value;
+  const tags=document.getElementById('wInpTags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const existing=getWords();
+  if(idStr){
+    const idx=existing.findIndex(w=>w.id===+idStr);
+    if(idx>=0){
+      existing[idx]={...existing[idx],word,meaning,
+        pos:document.getElementById('wInpPos').value,
+        example:document.getElementById('wInpExample').value.trim(),
+        markerColor:document.getElementById('wInpMarker').value,tags};
+    }
+  } else {
+    existing.push({id:Date.now(),word,meaning,
+      pos:document.getElementById('wInpPos').value,
+      example:document.getElementById('wInpExample').value.trim(),
+      markerColor:document.getElementById('wInpMarker').value,tags,
+      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}});
+  }
+  saveWords(existing);
+  closeWordModal();
+  renderWordList();
+  syncWords();
+}
+function deleteWord(id){
+  if(!confirm('この単語を削除しますか？'))return;
+  saveWords(getWords().filter(w=>w.id!==id));
+  renderWordList();
+  syncWords();
+}
+
+// =============================================
+// SRS / FLASHCARD
+// =============================================
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+
+function advanceSrs(srs, judgement){
+  const s={...srs};
+  if(judgement==='ok'){
+    s.correctCount=(s.correctCount||0)+1;
+    const idx=SRS_INTERVALS.indexOf(s.interval||1);
+    s.interval=SRS_INTERVALS[Math.min(idx+1,SRS_INTERVALS.length-1)];
+  } else if(judgement==='maybe'){
+    // interval unchanged
+  } else {
+    s.wrongCount=(s.wrongCount||0)+1;
+    s.interval=1;
+  }
+  const next=new Date(); next.setDate(next.getDate()+s.interval);
+  s.nextDate=next.toISOString().split('T')[0];
+  s.status=(s.correctCount||0)>=4?'mastered':'learning';
+  return s;
+}
+
+function startTodayStudy(){
+  const today=todayStr();
+  const due=getWords().filter(w=>(w.srs?.nextDate||today)<=today);
+  if(!due.length){alert('今日の学習対象はありません！');return;}
+  currentFcQueue=[...due].sort(()=>Math.random()-.5);
+  currentFcIdx=0;
+  currentFcStats={ok:0,maybe:0,miss:0};
+  showFcCard();
+  document.getElementById('fcOverlay').classList.remove('hidden');
+  document.getElementById('fcDone').style.display='none';
+  document.getElementById('fcCard').style.display='flex';
+  document.getElementById('fcActions').style.display='none';
+}
+function closeFc(){
+  document.getElementById('fcOverlay').classList.add('hidden');
+  renderWordList();
+  syncWords();
+}
+function showFcCard(){
+  const w=currentFcQueue[currentFcIdx];
+  if(!w)return;
+  document.getElementById('fcProgress').textContent=`${currentFcIdx+1} / ${currentFcQueue.length}`;
+  document.getElementById('fcWord').textContent=w.word;
+  document.getElementById('fcMeaning').textContent=w.meaning;
+  document.getElementById('fcPos').textContent=w.pos||'';
+  document.getElementById('fcExample').textContent=w.example||'';
+  document.getElementById('fcCard').classList.remove('flipped');
+  document.getElementById('fcActions').style.display='none';
+}
+function flipCard(){
+  const card=document.getElementById('fcCard');
+  if(card.classList.contains('flipped'))return;
+  card.classList.add('flipped');
+  document.getElementById('fcActions').style.display='flex';
+}
+function judgeCard(j){
+  currentFcStats[j]++;
+  const words=getWords();
+  const w=currentFcQueue[currentFcIdx];
+  const idx=words.findIndex(x=>x.id===w.id);
+  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
+  saveWords(words);
+  currentFcIdx++;
+  if(currentFcIdx>=currentFcQueue.length){
+    document.getElementById('fcCard').style.display='none';
+    document.getElementById('fcActions').style.display='none';
+    document.getElementById('fcDone').style.display='block';
+    document.getElementById('fcDoneStat').textContent=
+      `⭕ ${currentFcStats.ok} 語 ／ 🔺 ${currentFcStats.maybe} 語 ／ ❌ ${currentFcStats.miss} 語`;
+  } else {
+    showFcCard();
+  }
+}
+function speakWord(){ speakWordStr(currentFcQueue[currentFcIdx]?.word||''); }
+function speakWordStr(word){
+  if(!word||!window.speechSynthesis)return;
+  const u=new SpeechSynthesisUtterance(word); u.lang='en-US';
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+
+// =============================================
+// PHOTO / AI EXTRACTION
+// =============================================
+async function handlePhoto(input){
+  if(!input.files[0])return;
+  const file=input.files[0];
+  input.value='';
+  const overlay=document.getElementById('photoModalOverlay');
+  overlay.classList.remove('hidden');
+  document.getElementById('photoLoadingMsg').style.display='block';
+  document.getElementById('photoConfirmWrap').style.display='none';
+  document.getElementById('photoErrorMsg').style.display='none';
+  document.getElementById('photoModalActions').style.display='none';
+  document.getElementById('photoCloseSingleBtn').style.display='none';
+
+  const base64=await fileToBase64(file);
+  const mediaType=file.type||'image/jpeg';
+  const sbUrl=localStorage.getItem(SUPABASE_URL_KEY)||'';
+  const fnUrl=sbUrl?`${sbUrl}/functions/v1/extract-marked-words`:'';
+  if(!fnUrl){
+    showPhotoError('Supabase URLが設定されていません。設定タブで入力してください。');
+    return;
+  }
+  try{
+    const res=await fetch(fnUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',
+        'Authorization':`Bearer ${localStorage.getItem(SUPABASE_KEY_KEY)||''}`},
+      body:JSON.stringify({imageBase64:base64,mediaType}),
+    });
+    const json=await res.json();
+    if(json.error){showPhotoError(json.error);return;}
+    if(!Array.isArray(json)||json.length===0){
+      showPhotoError('マーカーが認識できませんでした。明るい場所で、マーカー部分がはっきり写るように撮り直してください。');
+      return;
+    }
+    document.getElementById('photoLoadingMsg').style.display='none';
+    document.getElementById('photoConfirmWrap').style.display='block';
+    document.getElementById('photoModalActions').style.display='flex';
+    renderConfirmTable(json);
+  } catch(e){
+    showPhotoError('通信エラー: '+e.message);
+  }
+}
+function showPhotoError(msg){
+  document.getElementById('photoLoadingMsg').style.display='none';
+  document.getElementById('photoErrorMsg').style.display='block';
+  document.getElementById('photoErrorMsg').textContent=msg;
+  document.getElementById('photoCloseSingleBtn').style.display='block';
+}
+function closePhotoModal(){ document.getElementById('photoModalOverlay').classList.add('hidden'); }
+
+function renderConfirmTable(items){
+  const tbody=document.getElementById('confirmTbody');
+  tbody.innerHTML=items.map((item,i)=>{
+    const empty=!item.meaning;
+    return `<tr id="crow_${i}" class="${empty?'empty-meaning':''}">
+      <td><input type="checkbox" class="crow-check" data-idx="${i}" checked></td>
+      <td contenteditable id="cw_${i}">${escHtml(item.word||'')}</td>
+      <td contenteditable id="cm_${i}">${escHtml(item.meaning||'')}</td>
+      <td contenteditable id="cp_${i}">${escHtml(item.pos||'')}</td>
+      <td contenteditable id="ce_${i}">${escHtml(item.example||'')}</td>
+      <td contenteditable id="cc_${i}">${escHtml(item.markerColor||'')}</td>
+    </tr>`;
+  }).join('');
+  updateConfirmBtn(items.length);
+  document.querySelectorAll('.crow-check').forEach(cb=>{
+    cb.addEventListener('change',()=>updateConfirmBtn(items.length));
+  });
+}
+function toggleAllConfirm(master){
+  document.querySelectorAll('.crow-check').forEach(cb=>cb.checked=master.checked);
+  updateConfirmBtn();
+}
+function updateConfirmBtn(){
+  const checked=document.querySelectorAll('.crow-check:checked').length;
+  document.getElementById('confirmImportBtn').textContent=`選択した ${checked} 件を登録`;
+}
+function confirmImportWords(){
+  const existing=getWords();
+  const existSet=new Set(existing.map(w=>w.word.toLowerCase()));
+  let added=0,skipped=0;
+  document.querySelectorAll('.crow-check:checked').forEach(cb=>{
+    const i=cb.dataset.idx;
+    const word=(document.getElementById('cw_'+i)?.textContent||'').trim();
+    const meaning=(document.getElementById('cm_'+i)?.textContent||'').trim();
+    if(!word)return;
+    if(existSet.has(word.toLowerCase())){skipped++;return;}
+    existing.push({id:Date.now()+added,word,meaning,
+      pos:(document.getElementById('cp_'+i)?.textContent||'').trim(),
+      example:(document.getElementById('ce_'+i)?.textContent||'').trim(),
+      markerColor:(document.getElementById('cc_'+i)?.textContent||'').trim(),
+      tags:[],
+      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}});
+    existSet.add(word.toLowerCase());
+    added++;
+  });
+  saveWords(existing);
+  closePhotoModal();
+  renderWordList();
+  syncWords();
+  if(skipped>0) alert(`${added} 件を登録しました（重複 ${skipped} 件はスキップ）`);
+  else alert(`${added} 件を登録しました`);
+}
+function fileToBase64(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>res(e.target.result.split(',')[1]);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// =============================================
+// GRAPHS
+// =============================================
+function destroyChart(key){
+  if(chartInstances[key]){chartInstances[key].destroy();delete chartInstances[key];}
+}
+function switchWritingTab(t){
+  activeWritingTab=t;
+  document.getElementById('wtabA').classList.toggle('active',t==='A');
+  document.getElementById('wtabB').classList.toggle('active',t==='B');
+  renderWritingChart();
+}
+
+function renderGraphs(){
+  renderKPI();
+  renderTrendChart();
+  renderRadarChart();
+  renderTotalChart();
+  renderWritingChart();
+  renderReviewChart();
+  renderWordChart();
+}
+
+function renderKPI(){
+  const exams=getExams();
+  const words=getWords();
+  const s=getSettings();
+  const latest=exams[0];
+  const latestPct=latest?calcExamScore(latest).pct:'-';
+  const mastered=words.filter(w=>w.srs?.status==='mastered').length;
+
+  // streak
+  const today=new Date(); let streak=0;
+  const dates=new Set(words.flatMap(w=>w.srs?.nextDate?[]:[])); // study dates not tracked well here
+  // approximate from words studied today
+  const el=document.getElementById('kpiRow');
+  el.innerHTML=[
+    {val:exams.length,label:'実施回数'},
+    {val:latestPct+(latestPct!=='-'?'%':''),label:'直近正答率'},
+    {val:words.length,label:'登録単語数'},
+    {val:mastered,label:'習得済み単語'},
+    {val:'-',label:'連続学習日数'},
+  ].map(k=>`<div class="kpi-tile"><div class="kpi-val">${k.val}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+}
+
+function examLabel(e){ return `${e.year}-${e.round.replace('第','').replace('回','')}`; }
+
+function renderTrendChart(){
+  destroyChart('trend');
+  const exams=[...getExams()].reverse();
+  if(exams.length<1){return;}
+  const labels=exams.map(examLabel);
+  const colors={w1:'#4b9eff',w2:'#51cf66',w3:'#ff6b6b',l1:'#ffa94d',l2:'#ae3ec9'};
+  const datasets=SECTION_DEFS.map(d=>({
+    label:d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS'),
+    data:exams.map(e=>{
+      const s=e.sections?.[d.key]||{};
+      const t=s.total||getSectionTotals()[d.key];
+      return t>0?Math.round((s.correct||0)/t*100):null;
+    }),
+    borderColor:colors[d.key],backgroundColor:'transparent',
+    tension:.3,pointRadius:4,borderWidth:2,
+  }));
+  const ctx=document.getElementById('chartTrend').getContext('2d');
+  chartInstances.trend=new Chart(ctx,{
+    type:'line',data:{labels,datasets},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+      scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}}
+  });
+}
+
+function renderRadarChart(){
+  destroyChart('radar');
+  const exams=getExams();
+  if(!exams.length)return;
+  const latest=exams[0];
+  const labels=SECTION_DEFS.map(d=>d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS'));
+  const data=SECTION_DEFS.map(d=>{
+    const s=latest.sections?.[d.key]||{};
+    const t=s.total||getSectionTotals()[d.key];
+    return t>0?Math.round((s.correct||0)/t*100):0;
+  });
+  const ctx=document.getElementById('chartRadar').getContext('2d');
+  chartInstances.radar=new Chart(ctx,{
+    type:'radar',data:{labels,datasets:[{label:'正答率',data,
+      backgroundColor:'rgba(59,91,219,.2)',borderColor:'#3b5bdb',pointBackgroundColor:'#3b5bdb',borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{stepSize:25}}}}
+  });
+}
+
+function renderTotalChart(){
+  destroyChart('total');
+  const exams=[...getExams()].reverse();
+  if(!exams.length)return;
+  const s=getSettings(); const target=s.targetRate||70;
+  const labels=exams.map(examLabel);
+  const data=exams.map(e=>calcExamScore(e).pct);
+  const ctx=document.getElementById('chartTotal').getContext('2d');
+  chartInstances.total=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'合計正答率',data,backgroundColor:'#3b5bdb',borderRadius:4,order:2},
+      {label:`目標 ${target}%`,data:labels.map(()=>target),type:'line',
+        borderColor:'#e67700',borderDash:[5,4],borderWidth:2,pointRadius:0,
+        backgroundColor:'transparent',order:1},
+    ]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+      scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}}
+  });
+}
+
+function renderWritingChart(){
+  destroyChart('writing');
+  const exams=[...getExams()].reverse();
+  if(!exams.length)return;
+  const key=activeWritingTab==='A'?'w4a':'w4b';
+  const labels=exams.map(examLabel);
+  const colors=['#4b9eff','#51cf66','#ffa94d','#ff6b6b'];
+  const datasets=WRITING_KEYS.map((k,i)=>({
+    label:WRITING_LABELS[i],
+    data:exams.map(e=>e.sections?.[key]?.[k]||0),
+    borderColor:colors[i],backgroundColor:colors[i]+'33',
+    tension:.3,pointRadius:3,fill:true,borderWidth:2,
+  }));
+  const ctx=document.getElementById('chartWriting').getContext('2d');
+  chartInstances.writing=new Chart(ctx,{
+    type:'line',data:{labels,datasets},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+      scales:{y:{min:0,max:4,ticks:{stepSize:1}}}}
+  });
+}
+
+function renderReviewChart(){
+  destroyChart('review');
+  const exams=getExams();
+  let total=0,done=0;
+  exams.forEach(e=>{
+    SECTION_DEFS.forEach(d=>{
+      total++;
+      if(e.sections?.[d.key]?.reviewed) done++;
+    });
+  });
+  const pct=total>0?Math.round(done/total*100):0;
+  document.getElementById('reviewCenter').textContent=pct+'%';
+  const ctx=document.getElementById('chartReview').getContext('2d');
+  chartInstances.review=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:['済','未'],datasets:[{
+      data:[done,total-done],
+      backgroundColor:['#2f9e44','#dde3f0'],borderWidth:0,cutout:'72%'
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}}}
+  });
+}
+
+function renderWordChart(){
+  destroyChart('wordChart');
+  const words=getWords();
+  const counts={new:0,learning:0,mastered:0};
+  words.forEach(w=>{ const s=w.srs?.status||'new'; counts[s]=(counts[s]||0)+1; });
+  const ctx=document.getElementById('chartWords').getContext('2d');
+  chartInstances.wordChart=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:['🆕 未学習','📚 学習中','✅ 習得'],
+      datasets:[{data:[counts.new,counts.learning,counts.mastered],
+        backgroundColor:['#94a3b8','#4b9eff','#2f9e44'],borderWidth:0}]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}}}
+  });
+}
+
+// =============================================
+// DATA EXPORT/IMPORT/DELETE
+// =============================================
+function exportData(){
+  const data={exams:getExams(),words:getWords(),settings:getSettings()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`eiken2_backup_${todayStr()}.json`; a.click();
+}
+function importData(input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(d.exams) saveExams(d.exams);
+      if(d.words) saveWords(d.words);
+      if(d.settings) localStorage.setItem(SETTINGS_KEY,JSON.stringify(d.settings));
+      alert('インポートしました');
+      renderExamList(); renderWordList(); loadSettingsUI();
+    }catch(err){alert('インポート失敗: '+err.message);}
+  };
+  r.readAsText(f); input.value='';
+}
+function confirmDeleteAll(){
+  if(!confirm('全データを削除しますか？この操作は元に戻せません。'))return;
+  if(!confirm('本当に削除しますか？'))return;
+  [EXAMS_KEY,WORDS_KEY,SETTINGS_KEY,USERNAME_KEY].forEach(k=>localStorage.removeItem(k));
+  renderExamList(); renderWordList(); loadSettingsUI();
+  alert('削除しました');
+}
+
+// =============================================
+// SUPABASE
+// =============================================
+function initSupabase(){
+  const url=localStorage.getItem(SUPABASE_URL_KEY)||'';
+  const key=localStorage.getItem(SUPABASE_KEY_KEY)||'';
+  if(!url||!key){sbClient=null;setSyncBadge('offline');return;}
+  try{
+    sbClient=supabase.createClient(url,key);
+    setSyncBadge('ok');
+  }catch(e){sbClient=null;setSyncBadge('offline');}
+}
+function setSyncBadge(state){
+  const el=document.getElementById('syncBadge');
+  el.className='sync-badge '+state;
+  el.textContent={ok:'同期済み',syncing:'同期中…',offline:'オフライン'}[state]||'オフライン';
+}
+
+// --- Exams ---
+function toExamRow(exam,userName){
+  return {id:exam.id,user_name:userName,year:exam.year,round:exam.round,
+    date:exam.date,sections:exam.sections};
+}
+function fromExamRow(r){
+  return {id:r.id,year:r.year,round:r.round,date:r.date,sections:r.sections||{}};
+}
+async function syncExams(){
+  if(!sbClient||!getUserName())return;
+  setSyncBadge('syncing');
+  try{
+    const un=getUserName();
+    await sbClient.from('eiken_exams').delete().eq('user_name',un);
+    const rows=getExams().map(e=>toExamRow(e,un));
+    if(rows.length) await sbClient.from('eiken_exams').insert(rows);
+    setSyncBadge('ok');
+  }catch(e){setSyncBadge('offline');}
+}
+
+// --- Words ---
+function toWordRow(w,userName){
+  return {id:w.id,user_name:userName,word:w.word,meaning:w.meaning,
+    pos:w.pos||'',example:w.example||'',marker_color:w.markerColor||'',
+    tags:w.tags||[],srs:w.srs||{}};
+}
+function fromWordRow(r){
+  return {id:r.id,word:r.word,meaning:r.meaning,pos:r.pos||'',
+    example:r.example||'',markerColor:r.marker_color||'',
+    tags:r.tags||[],srs:r.srs||{}};
+}
+async function syncWords(){
+  if(!sbClient||!getUserName())return;
+  setSyncBadge('syncing');
+  try{
+    const un=getUserName();
+    await sbClient.from('eiken_words').delete().eq('user_name',un);
+    const rows=getWords().map(w=>toWordRow(w,un));
+    if(rows.length) await sbClient.from('eiken_words').insert(rows);
+    setSyncBadge('ok');
+  }catch(e){setSyncBadge('offline');}
+}
+
+// --- Settings ---
+function toSettingsRow(s,userName){
+  return {id:userName,user_name:userName,exam_date:s.examDate||null,
+    target_rate:s.targetRate||70,section_totals:s.sectionTotals||{}};
+}
+function fromSettingsRow(r){
+  return {examDate:r.exam_date||'',targetRate:r.target_rate||70,
+    sectionTotals:r.section_totals||{}};
+}
+async function syncSettings(){
+  if(!sbClient||!getUserName())return;
+  try{
+    const un=getUserName();
+    await sbClient.from('eiken_settings').upsert(toSettingsRow(getSettings(),un));
+  }catch(e){}
+}
+
+async function pullFromSupabase(){
+  if(!sbClient||!getUserName()){setSyncBadge('offline');return;}
+  setSyncBadge('syncing');
+  const un=getUserName();
+  try{
+    const [{data:eData},{data:wData},{data:sData}]=await Promise.all([
+      sbClient.from('eiken_exams').select('*').eq('user_name',un),
+      sbClient.from('eiken_words').select('*').eq('user_name',un),
+      sbClient.from('eiken_settings').select('*').eq('user_name',un),
+    ]);
+    if(eData&&eData.length){
+      const merged=mergeById(getExams(),eData.map(fromExamRow));
+      saveExams(merged);
+    }
+    if(wData&&wData.length){
+      const merged=mergeById(getWords(),wData.map(fromWordRow));
+      saveWords(merged);
+    }
+    if(sData&&sData.length){
+      const s=fromSettingsRow(sData[0]);
+      localStorage.setItem(SETTINGS_KEY,JSON.stringify({...getSettings(),...s}));
+    }
+    setSyncBadge('ok');
+    renderExamList(); renderWordList(); loadSettingsUI();
+  }catch(e){setSyncBadge('offline');}
+}
+
+function mergeById(local,remote){
+  const map=new Map();
+  local.forEach(r=>map.set(r.id,r));
+  remote.forEach(r=>map.set(r.id,r));
+  return [...map.values()].sort((a,b)=>b.id-a.id);
+}
+
+// =============================================
+// UTILS
+// =============================================
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
+
+// =============================================
+// INIT
+// =============================================
+window.addEventListener('DOMContentLoaded',()=>{
+  // Register SW
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+  initSupabase();
+  if(!getUserName()){
+    openUserNameModal(false);
+  } else {
+    pullFromSupabase();
+  }
+  loadSettingsUI();
+  renderExamList();
+  renderWordList();
+  document.getElementById('wordSearch').addEventListener('input',renderWordList);
+});
+
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden) pullFromSupabase();
+});
+</script>
+</body>
+</html>
