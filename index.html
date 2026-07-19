@@ -153,11 +153,21 @@ main{padding:20px 16px;max-width:600px;margin:0 auto}
 .fc-back{display:none}
 .fc-card.flipped .fc-front{display:none}
 .fc-card.flipped .fc-back{display:block;width:100%}
+.fc-mode-tabs{display:flex;gap:8px;margin-bottom:16px;width:100%;max-width:420px}
+.fc-mode-tab{flex:1;padding:10px;border-radius:10px;border:2px solid var(--border);
+  background:var(--card);color:var(--text2);font-size:.9rem;font-weight:600;cursor:pointer}
+.fc-mode-tab.active{border-color:var(--primary);color:var(--primary);background:rgba(0,122,255,.07)}
 .fc-actions{display:flex;gap:10px;margin-top:20px;width:100%;max-width:420px}
 .fc-actions .btn{flex:1;font-size:15px;padding:14px}
 .fc-btn-ok{background:var(--green);color:#fff}
 .fc-btn-maybe{background:var(--orange);color:#fff}
 .fc-btn-miss{background:var(--danger);color:#fff}
+.quiz-choices{display:flex;flex-direction:column;gap:10px;margin-top:20px;width:100%;max-width:420px}
+.quiz-choice{background:var(--card);border:2px solid var(--border);border-radius:12px;
+  padding:14px 18px;font-size:1rem;cursor:pointer;text-align:left;transition:.15s}
+.quiz-choice:active{transform:scale(.98)}
+.quiz-choice.correct{border-color:var(--green);background:rgba(52,199,89,.1);color:var(--green)}
+.quiz-choice.wrong{border-color:var(--danger);background:rgba(255,59,48,.08);color:var(--danger)}
 .fc-sound{position:absolute;top:12px;right:12px;background:none;border:none;
   font-size:1.2rem;cursor:pointer;color:var(--text2)}
 
@@ -594,23 +604,41 @@ input[type=checkbox]{accent-color:var(--primary)}
     <button class="btn btn-secondary btn-sm" onclick="closeFc()">✕ 終了</button>
     <div class="fc-progress" id="fcProgress"></div>
   </div>
-  <div class="fc-card" id="fcCard" onclick="flipCard()">
-    <button class="fc-sound" id="fcSoundBtn" onclick="event.stopPropagation();speakWord()" title="発音">🔊</button>
-    <div class="fc-front">
-      <div class="fc-word" id="fcWord"></div>
-      <div class="fc-hint">タップして裏返す</div>
+  <!-- モード選択 -->
+  <div class="fc-mode-tabs" id="fcModeTabs">
+    <button class="fc-mode-tab active" id="modeTabMemory" onclick="switchFcMode('memory')">🧠 暗記</button>
+    <button class="fc-mode-tab" id="modeTabQuiz" onclick="switchFcMode('quiz')">📝 4択</button>
+  </div>
+  <!-- 暗記モード -->
+  <div id="fcMemoryArea">
+    <div class="fc-card" id="fcCard" onclick="flipCard()">
+      <button class="fc-sound" onclick="event.stopPropagation();speakWord()" title="発音">🔊</button>
+      <div class="fc-front">
+        <div class="fc-word" id="fcWord"></div>
+        <div class="fc-hint">タップして裏返す</div>
+      </div>
+      <div class="fc-back">
+        <div class="fc-meaning" id="fcMeaning"></div>
+        <div class="fc-pos" id="fcPos"></div>
+        <div class="fc-example" id="fcExample"></div>
+      </div>
     </div>
-    <div class="fc-back">
-      <div class="fc-meaning" id="fcMeaning"></div>
-      <div class="fc-pos" id="fcPos"></div>
-      <div class="fc-example" id="fcExample"></div>
+    <div class="fc-actions" id="fcActions" style="display:none">
+      <button class="btn fc-btn-miss" onclick="judgeCard('miss')">❌ 忘れた</button>
+      <button class="btn fc-btn-maybe" onclick="judgeCard('maybe')">🔺 あいまい</button>
+      <button class="btn fc-btn-ok" onclick="judgeCard('ok')">⭕ 覚えた</button>
     </div>
   </div>
-  <div class="fc-actions" id="fcActions" style="display:none">
-    <button class="btn fc-btn-miss" onclick="judgeCard('miss')">❌ 忘れた</button>
-    <button class="btn fc-btn-maybe" onclick="judgeCard('maybe')">🔺 あいまい</button>
-    <button class="btn fc-btn-ok" onclick="judgeCard('ok')">⭕ 覚えた</button>
+  <!-- 4択モード -->
+  <div id="fcQuizArea" style="display:none;width:100%;max-width:420px">
+    <div class="fc-card" style="cursor:default">
+      <button class="fc-sound" onclick="speakWord()" title="発音">🔊</button>
+      <div class="fc-word" id="quizWord"></div>
+      <div style="font-size:.8rem;color:var(--text2);margin-top:4px">意味を選んでください</div>
+    </div>
+    <div class="quiz-choices" id="quizChoices"></div>
   </div>
+  <!-- 完了画面 -->
   <div id="fcDone" style="display:none;text-align:center;margin-top:20px">
     <div style="font-size:1.3rem;font-weight:800;color:var(--primary);margin-bottom:8px">お疲れさまでした！🎉</div>
     <div id="fcDoneStat" style="font-size:.9rem;color:var(--text2);margin-bottom:16px"></div>
@@ -1196,24 +1224,51 @@ function advanceSrs(srs, judgement){
   return s;
 }
 
+let _fcMode = 'memory';
+
 function startTodayStudy(){
   const today=todayStr();
   const due=getWords().filter(w=>(w.srs?.nextDate||today)<=today);
   if(!due.length){alert('今日の学習対象はありません！');return;}
-  currentFcQueue=[...due].sort(()=>Math.random()-.5);
+  currentFcQueue=[...due].sort(()=>Math.random()-.5).slice(0,10);
   currentFcIdx=0;
   currentFcStats={ok:0,maybe:0,miss:0};
-  showFcCard();
-  document.getElementById('fcOverlay').classList.remove('hidden');
+  _fcMode='memory';
+  document.getElementById('modeTabMemory').classList.add('active');
+  document.getElementById('modeTabQuiz').classList.remove('active');
   document.getElementById('fcDone').style.display='none';
-  document.getElementById('fcCard').style.display='flex';
-  document.getElementById('fcActions').style.display='none';
+  document.getElementById('fcOverlay').classList.remove('hidden');
+  showCurrentFcCard();
 }
+
+function switchFcMode(mode){
+  _fcMode=mode;
+  document.getElementById('modeTabMemory').classList.toggle('active',mode==='memory');
+  document.getElementById('modeTabQuiz').classList.toggle('active',mode==='quiz');
+  currentFcIdx=0;
+  currentFcStats={ok:0,maybe:0,miss:0};
+  document.getElementById('fcDone').style.display='none';
+  showCurrentFcCard();
+}
+
+function showCurrentFcCard(){
+  if(_fcMode==='memory'){
+    document.getElementById('fcMemoryArea').style.display='';
+    document.getElementById('fcQuizArea').style.display='none';
+    showFcCard();
+  } else {
+    document.getElementById('fcMemoryArea').style.display='none';
+    document.getElementById('fcQuizArea').style.display='';
+    showQuizCard();
+  }
+}
+
 function closeFc(){
   document.getElementById('fcOverlay').classList.add('hidden');
   renderWordList();
   syncWords();
 }
+
 function showFcCard(){
   const w=currentFcQueue[currentFcIdx];
   if(!w)return;
@@ -1240,15 +1295,69 @@ function judgeCard(j){
   saveWords(words);
   currentFcIdx++;
   if(currentFcIdx>=currentFcQueue.length){
-    document.getElementById('fcCard').style.display='none';
-    document.getElementById('fcActions').style.display='none';
-    document.getElementById('fcDone').style.display='block';
-    document.getElementById('fcDoneStat').textContent=
-      `⭕ ${currentFcStats.ok} 語 ／ 🔺 ${currentFcStats.maybe} 語 ／ ❌ ${currentFcStats.miss} 語`;
+    showFcDone();
   } else {
     showFcCard();
   }
 }
+
+function showQuizCard(){
+  const w=currentFcQueue[currentFcIdx];
+  if(!w)return;
+  document.getElementById('fcProgress').textContent=`${currentFcIdx+1} / ${currentFcQueue.length}`;
+  document.getElementById('quizWord').textContent=w.word;
+  speakWordStr(w.word);
+  // 選択肢: 正解 + ランダム3語
+  const allWords=getWords();
+  const distractors=allWords.filter(x=>x.id!==w.id&&x.meaning)
+    .sort(()=>Math.random()-.5).slice(0,3);
+  const choices=[{word:w,correct:true},...distractors.map(x=>({word:x,correct:false}))]
+    .sort(()=>Math.random()-.5);
+  const container=document.getElementById('quizChoices');
+  container.innerHTML='';
+  const btns=[];
+  choices.forEach(c=>{
+    const btn=document.createElement('button');
+    btn.className='quiz-choice';
+    btn.textContent=c.word.meaning;
+    btn._correct=c.correct;
+    container.appendChild(btn);
+    btns.push(btn);
+  });
+  const correctBtn=btns.find(b=>b._correct);
+  btns.forEach(btn=>{
+    btn.onclick=()=>judgeQuiz(btn._correct,btn,container,correctBtn);
+  });
+}
+function judgeQuiz(correct, btn, container, correctBtn){
+  container.querySelectorAll('.quiz-choice').forEach(b=>b.onclick=null);
+  btn.classList.add(correct?'correct':'wrong');
+  if(!correct && correctBtn) correctBtn.classList.add('correct');
+  const j=correct?'ok':'miss';
+  currentFcStats[j]++;
+  const words=getWords();
+  const w=currentFcQueue[currentFcIdx];
+  const idx=words.findIndex(x=>x.id===w.id);
+  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
+  saveWords(words);
+  setTimeout(()=>{
+    currentFcIdx++;
+    if(currentFcIdx>=currentFcQueue.length){
+      showFcDone();
+    } else {
+      showQuizCard();
+    }
+  },800);
+}
+
+function showFcDone(){
+  document.getElementById('fcMemoryArea').style.display='none';
+  document.getElementById('fcQuizArea').style.display='none';
+  document.getElementById('fcDone').style.display='block';
+  document.getElementById('fcDoneStat').textContent=
+    `⭕ ${currentFcStats.ok} 語 ／ 🔺 ${currentFcStats.maybe} 語 ／ ❌ ${currentFcStats.miss} 語`;
+}
+
 function speakWord(){ speakWordStr(currentFcQueue[currentFcIdx]?.word||''); }
 function speakWordStr(word){
   if(!word||!window.speechSynthesis)return;
