@@ -490,19 +490,6 @@ input[type=checkbox]{accent-color:var(--primary)}
       <button class="btn btn-danger btn-full" onclick="confirmDeleteAll()">🗑 全データ削除</button>
     </div>
   </div>
-  <div class="card">
-    <div class="card-title">Supabase 設定</div>
-    <div class="form-row">
-      <label class="form-label" style="min-width:80px">URL</label>
-      <input id="cfgUrl" class="form-input" placeholder="https://xxx.supabase.co"
-        onchange="saveSupabaseCfg()">
-    </div>
-    <div class="form-row">
-      <label class="form-label" style="min-width:80px">Anon Key</label>
-      <input id="cfgKey" class="form-input" placeholder="eyJ..." onchange="saveSupabaseCfg()">
-    </div>
-    <button class="btn btn-primary btn-sm btn-full" onclick="initSupabase();pullFromSupabase()">接続テスト / 同期</button>
-  </div>
 </div>
 
 </main>
@@ -635,8 +622,6 @@ input[type=checkbox]{accent-color:var(--primary)}
 // =============================================
 // CONSTANTS & STATE
 // =============================================
-const SUPABASE_URL_KEY = 'eiken2_sbUrl';
-const SUPABASE_KEY_KEY = 'eiken2_sbKey';
 const EXAMS_KEY = 'eiken2_exams';
 const WORDS_KEY = 'eiken2_words';
 const SETTINGS_KEY = 'eiken2_settings';
@@ -700,10 +685,6 @@ function loadSettingsUI(){
   if(s.examDate) document.getElementById('settingExamDate').value=s.examDate;
   document.getElementById('settingTargetRate').value=s.targetRate||70;
   renderSectionTotalsForm();
-  const cfgUrl=localStorage.getItem(SUPABASE_URL_KEY)||'';
-  const cfgKey=localStorage.getItem(SUPABASE_KEY_KEY)||'';
-  document.getElementById('cfgUrl').value=cfgUrl;
-  document.getElementById('cfgKey').value=cfgKey;
   updateCountdown();
 }
 
@@ -724,12 +705,6 @@ function saveSectionTotal(key,val){
   s.sectionTotals[key]=val; localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));
   syncSettings();
 }
-function saveSupabaseCfg(){
-  localStorage.setItem(SUPABASE_URL_KEY,document.getElementById('cfgUrl').value.trim());
-  localStorage.setItem(SUPABASE_KEY_KEY,document.getElementById('cfgKey').value.trim());
-  initSupabase();
-}
-
 function updateCountdown(){
   const s=getSettings(); const el=document.getElementById('countdown');
   if(!s.examDate){el.textContent='';return;}
@@ -1298,17 +1273,12 @@ async function handlePhoto(input){
 
   const base64=await fileToBase64(file);
   const mediaType=file.type||'image/jpeg';
-  const sbUrl=localStorage.getItem(SUPABASE_URL_KEY)||'';
-  const fnUrl=sbUrl?`${sbUrl}/functions/v1/extract-marked-words`:'';
-  if(!fnUrl){
-    showPhotoError('Supabase URLが設定されていません。設定タブで入力してください。');
-    return;
-  }
+  const fnUrl=`${_SB_URL}/functions/v1/extract-marked-words`;
   try{
     const res=await fetch(fnUrl,{
       method:'POST',
       headers:{'Content-Type':'application/json',
-        'Authorization':`Bearer ${localStorage.getItem(SUPABASE_KEY_KEY)||''}`},
+        'Authorization':`Bearer ${_SB_KEY}`},
       body:JSON.stringify({imageBase64:base64,mediaType}),
     });
     const json=await res.json();
@@ -1599,15 +1569,12 @@ function confirmDeleteAll(){
 // =============================================
 // SUPABASE
 // =============================================
-// 埋め込み済み認証情報（設定タブから上書き可）
 const _SB_URL = 'https://jqtmibcnllvbpwvzxlea.supabase.co';
 const _SB_KEY = 'sb_publishable_9ATK4N1-amyEWwJiCVgOJA_wpQ5Anka';
 
 function initSupabase(){
-  const url = localStorage.getItem(SUPABASE_URL_KEY) || _SB_URL;
-  const key = localStorage.getItem(SUPABASE_KEY_KEY) || _SB_KEY;
   try{
-    sbClient = supabase.createClient(url, key);
+    sbClient = supabase.createClient(_SB_URL, _SB_KEY);
     setSyncBadge('ok');
   }catch(e){ sbClient=null; setSyncBadge('offline'); }
 }
