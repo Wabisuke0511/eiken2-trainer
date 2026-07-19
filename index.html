@@ -235,7 +235,16 @@ main{padding:20px 16px;max-width:600px;margin:0 auto}
   transition:all .15s;color:var(--text);font-family:inherit}
 .pill-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
 
-/* ===== Input mode toggle (exam modal) ===== */
+/* ===== Edit mode banner ===== */
+.edit-mode-banner{display:flex;align-items:center;justify-content:space-between;
+  background:#fff8e1;border:1.5px solid #ffd54f;border-radius:var(--radius-sm);
+  padding:10px 14px;margin-bottom:16px;font-size:14px;font-weight:600;color:#795548}
+.cancel-edit-btn{padding:5px 14px;border:1.5px solid #ffd54f;border-radius:100px;
+  background:none;font-size:13px;font-weight:600;color:#795548;cursor:pointer;
+  font-family:inherit}
+.cancel-edit-btn:hover{background:#ffd54f44}
+
+/* ===== Input mode toggle (exam form) ===== */
 .input-mode-tabs{display:flex;background:var(--input-bg);border-radius:var(--radius-sm);
   padding:3px;margin-bottom:16px;gap:2px}
 .input-mode-btn{flex:1;padding:10px;border:none;border-radius:6px;
@@ -342,9 +351,62 @@ input[type=checkbox]{accent-color:var(--primary)}
 
 <!-- 演習タブ -->
 <div id="pane-exam" class="tab-pane">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-size:.9rem;font-weight:700;color:var(--text)">過去問記録</div>
-    <button class="btn btn-primary btn-sm" onclick="openExamModal()">＋ 記録する</button>
+
+  <!-- インライン入力フォーム -->
+  <div class="card">
+    <div class="card-title" id="examFormTitle">過去問を記録する</div>
+
+    <!-- 編集中バナー -->
+    <div class="edit-mode-banner" id="examEditBanner" style="display:none">
+      ✏️ 編集中です
+      <button class="cancel-edit-btn" onclick="cancelEditExam()">キャンセル</button>
+    </div>
+
+    <input type="hidden" id="editExamId">
+
+    <!-- メタ情報 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <label class="form-label" style="display:block;margin-bottom:4px">年度</label>
+        <select id="examYear" class="form-select">
+          <option>2024</option><option>2025</option><option selected>2026</option><option>2027</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" style="display:block;margin-bottom:4px">第何回</label>
+        <select id="examRound" class="form-select">
+          <option>第1回</option><option>第2回</option><option>第3回</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:14px">
+      <label class="form-label">実施日</label>
+      <input type="date" id="examDate" class="form-input">
+    </div>
+
+    <!-- 入力モード切り替え -->
+    <div class="input-mode-tabs">
+      <button class="input-mode-btn active" id="modeTabBulk" onclick="switchInputMode('bulk')">📋 一括入力</button>
+      <button class="input-mode-btn" id="modeTabSingle" onclick="switchInputMode('single')">✏️ 個別入力</button>
+    </div>
+
+    <!-- 個別入力：セクション選択ピル -->
+    <div id="singleSecSelector" style="display:none">
+      <div class="single-sec-row" id="singleSecBtns"></div>
+    </div>
+
+    <!-- セクションブロック（JS が描画） -->
+    <div id="allSecBlocks"></div>
+
+    <!-- 合計 + 保存 -->
+    <div class="total-pct" id="examTotalDisplay">合計 --%</div>
+    <button class="btn btn-primary btn-full" id="examSubmitBtn" onclick="saveExam()" style="margin-top:8px">記録する</button>
+  </div>
+
+  <!-- 記録一覧 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px">
+    <div style="font-size:17px;font-weight:700;color:var(--text)">記録一覧</div>
+    <div style="font-size:13px;color:var(--text2)" id="examCount"></div>
   </div>
   <div id="examList"></div>
 </div>
@@ -460,54 +522,6 @@ input[type=checkbox]{accent-color:var(--primary)}
   </div>
 </div>
 
-<!-- ===== EXAM MODAL ===== -->
-<div id="examModalOverlay" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-title" id="examModalTitle">📝 過去問を記録</div>
-    <input type="hidden" id="editExamId">
-
-    <!-- メタ情報 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-      <div>
-        <label class="form-label" style="display:block;margin-bottom:4px">年度</label>
-        <select id="examYear" class="form-select">
-          <option>2024</option><option>2025</option><option selected>2026</option><option>2027</option>
-        </select>
-      </div>
-      <div>
-        <label class="form-label" style="display:block;margin-bottom:4px">第何回</label>
-        <select id="examRound" class="form-select">
-          <option>第1回</option><option>第2回</option><option>第3回</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-row" style="margin-bottom:14px">
-      <label class="form-label">実施日</label>
-      <input type="date" id="examDate" class="form-input">
-    </div>
-
-    <!-- 入力モード切り替え -->
-    <div class="input-mode-tabs">
-      <button class="input-mode-btn active" id="modeTabBulk" onclick="switchInputMode('bulk')">📋 一括入力</button>
-      <button class="input-mode-btn" id="modeTabSingle" onclick="switchInputMode('single')">✏️ 個別入力</button>
-    </div>
-
-    <!-- 個別入力：セクション選択ピル -->
-    <div id="singleSecSelector" style="display:none">
-      <div class="single-sec-row" id="singleSecBtns"></div>
-    </div>
-
-    <!-- セクションブロック（JS が描画） -->
-    <div id="allSecBlocks"></div>
-
-    <!-- 合計 -->
-    <div class="total-pct" id="examTotalDisplay">合計 --%</div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeExamModal()">キャンセル</button>
-      <button class="btn btn-primary" style="flex:1" onclick="saveExam()">保存</button>
-    </div>
-  </div>
-</div>
 
 <!-- ===== WORD MODAL ===== -->
 <div id="wordModalOverlay" class="modal-overlay hidden">
@@ -889,50 +903,63 @@ function calcExamTotal(){
     `合計 ${pct}%（${correct}/${total}点）`;
 }
 
-function openExamModal(id){
+function resetExamForm(){
   _inputMode = 'bulk';
   _activeSec = 'w1';
   document.getElementById('modeTabBulk').classList.add('active');
   document.getElementById('modeTabSingle').classList.remove('active');
   document.getElementById('singleSecSelector').style.display = 'none';
-
-  buildAllSectionBlocks();
+  document.getElementById('editExamId').value = '';
   document.getElementById('examDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('examYear').value = '2026';
+  document.getElementById('examRound').value = '第1回';
+  document.getElementById('examFormTitle').textContent = '過去問を記録する';
+  document.getElementById('examEditBanner').style.display = 'none';
+  document.getElementById('examSubmitBtn').textContent = '記録する';
+  buildAllSectionBlocks();
+  calcExamTotal();
+}
+
+function openExamModal(id){
+  // タブを演習に切り替え
+  switchTab('exam');
+  resetExamForm();
 
   if(id){
-    document.getElementById('examModalTitle').textContent = '📝 過去問を編集';
-    document.getElementById('editExamId').value = id;
     const exam = getExams().find(e => e.id===id);
-    if(exam){
-      document.getElementById('examYear').value = exam.year;
-      document.getElementById('examRound').value = exam.round;
-      document.getElementById('examDate').value = exam.date;
-      const s = exam.sections||{};
-      SECTION_DEFS.forEach(d => {
-        const sec = s[d.key]||{};
-        if(sec.correct !== undefined) document.getElementById('sec_'+d.key).value = sec.correct;
-        if(sec.total   !== undefined) document.getElementById('secT_'+d.key).value = sec.total;
-        if(sec.reviewed)              document.getElementById('secRev_'+d.key).checked = true;
-        if(sec.reviewDate)            document.getElementById('secRevDate_'+d.key).value = sec.reviewDate;
+    if(!exam) return;
+    document.getElementById('examFormTitle').textContent = '過去問を編集';
+    document.getElementById('examEditBanner').style.display = 'flex';
+    document.getElementById('examSubmitBtn').textContent = '変更を保存';
+    document.getElementById('editExamId').value = id;
+    document.getElementById('examYear').value = exam.year;
+    document.getElementById('examRound').value = exam.round;
+    document.getElementById('examDate').value = exam.date;
+    const s = exam.sections||{};
+    SECTION_DEFS.forEach(d => {
+      const sec = s[d.key]||{};
+      if(sec.correct !== undefined) document.getElementById('sec_'+d.key).value = sec.correct;
+      if(sec.total   !== undefined) document.getElementById('secT_'+d.key).value = sec.total;
+      if(sec.reviewed)              document.getElementById('secRev_'+d.key).checked = true;
+      if(sec.reviewDate)            document.getElementById('secRevDate_'+d.key).value = sec.reviewDate;
+    });
+    ['w4a','w4b'].forEach(wid => {
+      const wr = s[wid]||{};
+      WRITING_KEYS.forEach(k => {
+        if(wr[k] !== undefined) document.getElementById(`rub_${wid}_${k}`).value = wr[k];
       });
-      ['w4a','w4b'].forEach(wid => {
-        const wr = s[wid]||{};
-        WRITING_KEYS.forEach(k => {
-          if(wr[k] !== undefined) document.getElementById(`rub_${wid}_${k}`).value = wr[k];
-        });
-      });
-      calcExamTotal();
-    }
-  } else {
-    document.getElementById('examModalTitle').textContent = '📝 過去問を記録';
-    document.getElementById('editExamId').value = '';
+    });
+    calcExamTotal();
+    // フォーム先頭にスクロール
+    document.getElementById('pane-exam').scrollIntoView({behavior:'smooth'});
   }
-  document.getElementById('examModalOverlay').classList.remove('hidden');
 }
 
-function closeExamModal(){
-  document.getElementById('examModalOverlay').classList.add('hidden');
+function cancelEditExam(){
+  resetExamForm();
 }
+
+function closeExamModal(){} // 後方互換のため残す
 
 function getExams(){
   try{return JSON.parse(localStorage.getItem(EXAMS_KEY)||'[]');}catch(e){return [];}
@@ -965,7 +992,7 @@ function saveExam(){
   const arr=getExams().filter(e=>e.id!==exam.id);
   arr.unshift(exam);
   saveExams(arr);
-  closeExamModal();
+  resetExamForm();
   renderExamList();
   syncExams();
 }
@@ -994,9 +1021,11 @@ function calcExamScore(exam){
 
 function renderExamList(){
   const exams=getExams();
+  const countEl=document.getElementById('examCount');
+  if(countEl) countEl.textContent=exams.length ? `${exams.length}件` : '';
   const el=document.getElementById('examList');
   if(!exams.length){
-    el.innerHTML='<div class="empty-state">まだ記録がありません。<br>右上のボタンで記録を追加しましょう。</div>';
+    el.innerHTML='<div class="empty-state"><div class="empty-state-emoji">📝</div><p>まだ記録がありません。<br>上のフォームから記録を追加しましょう。</p></div>';
     return;
   }
   el.innerHTML=exams.map(exam=>{
@@ -1570,14 +1599,17 @@ function confirmDeleteAll(){
 // =============================================
 // SUPABASE
 // =============================================
+// 埋め込み済み認証情報（設定タブから上書き可）
+const _SB_URL = 'https://jqtmibcnllvbpwvzxlea.supabase.co';
+const _SB_KEY = 'sb_publishable_9ATK4N1-amyEWwJiCVgOJA_wpQ5Anka';
+
 function initSupabase(){
-  const url=localStorage.getItem(SUPABASE_URL_KEY)||'';
-  const key=localStorage.getItem(SUPABASE_KEY_KEY)||'';
-  if(!url||!key){sbClient=null;setSyncBadge('offline');return;}
+  const url = localStorage.getItem(SUPABASE_URL_KEY) || _SB_URL;
+  const key = localStorage.getItem(SUPABASE_KEY_KEY) || _SB_KEY;
   try{
-    sbClient=supabase.createClient(url,key);
+    sbClient = supabase.createClient(url, key);
     setSyncBadge('ok');
-  }catch(e){sbClient=null;setSyncBadge('offline');}
+  }catch(e){ sbClient=null; setSyncBadge('offline'); }
 }
 function setSyncBadge(state){
   const el=document.getElementById('syncBadge');
@@ -1700,6 +1732,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     pullFromSupabase();
   }
   loadSettingsUI();
+  resetExamForm();
   renderExamList();
   renderWordList();
   document.getElementById('wordSearch').addEventListener('input',renderWordList);
