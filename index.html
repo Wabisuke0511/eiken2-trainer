@@ -669,8 +669,6 @@ const SRS_INTERVALS = [1,3,7,14,30,60];
 const MARKER_COLORS = {yellow:'#ffe066',pink:'#ffa8c5',green:'#69db7c',blue:'#74c0fc',orange:'#ffa94d'};
 
 let sbClient = null;
-let _wordsDirty = false;
-let _examsDirty = false;
 let currentFcQueue = [];
 let currentFcIdx = 0;
 let currentFcStats = {ok:0,maybe:0,miss:0};
@@ -998,18 +996,16 @@ function saveExam(){
   const arr=getExams().filter(e=>e.id!==exam.id);
   arr.unshift(exam);
   saveExams(arr);
-  _examsDirty=true;
   resetExamForm();
   renderExamList();
-  syncExams();
+  upsertExamToDb(exam);
 }
 
 function deleteExam(id){
   if(!confirm('この記録を削除しますか？'))return;
   saveExams(getExams().filter(e=>e.id!==id));
-  _examsDirty=true;
   renderExamList();
-  syncExams();
+  deleteExamFromDb(id);
 }
 
 function calcExamScore(exam){
@@ -1205,6 +1201,7 @@ function saveWord(){
   const idStr=document.getElementById('editWordId').value;
   const tags=document.getElementById('wInpTags').value.split(',').map(s=>s.trim()).filter(Boolean);
   const existing=getWords();
+  let targetWord;
   if(idStr){
     const idx=existing.findIndex(w=>w.id===+idStr);
     if(idx>=0){
@@ -1212,29 +1209,29 @@ function saveWord(){
         pos:document.getElementById('wInpPos').value,
         example:document.getElementById('wInpExample').value.trim(),
         markerColor:document.getElementById('wInpMarker').value,tags};
+      targetWord=existing[idx];
     }
   } else {
     if(existing.some(w=>w.word.toLowerCase()===word.toLowerCase())){
       alert(`「${word}」はすでに登録されています。`);return;
     }
-    existing.push({id:Date.now(),word,meaning,
+    targetWord={id:Date.now(),word,meaning,
       pos:document.getElementById('wInpPos').value,
       example:document.getElementById('wInpExample').value.trim(),
       markerColor:document.getElementById('wInpMarker').value,tags,
-      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}});
+      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}};
+    existing.push(targetWord);
   }
   saveWords(existing);
-  _wordsDirty=true;
   closeWordModal();
   renderWordList();
-  syncWords();
+  if(targetWord) upsertWordToDb(targetWord);
 }
 function deleteWord(id){
   if(!confirm('この単語を削除しますか？'))return;
   saveWords(getWords().filter(w=>w.id!==id));
-  _wordsDirty=true;
   renderWordList();
-  syncWords();
+  deleteWordFromDb(id);
 }
 
 // =============================================
@@ -1302,7 +1299,6 @@ function showCurrentFcCard(){
 function closeFc(){
   document.getElementById('fcOverlay').classList.add('hidden');
   renderWordList();
-  syncWords();
 }
 
 function showFcCard(){
@@ -1327,9 +1323,8 @@ function judgeCard(j){
   const words=getWords();
   const w=currentFcQueue[currentFcIdx];
   const idx=words.findIndex(x=>x.id===w.id);
-  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
+  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); upsertWordToDb(words[idx]); }
   saveWords(words);
-  _wordsDirty=true;
   currentFcIdx++;
   if(currentFcIdx>=currentFcQueue.length){
     showFcDone();
@@ -1375,9 +1370,8 @@ function judgeQuiz(correct, btn, container, correctBtn){
   const words=getWords();
   const w=currentFcQueue[currentFcIdx];
   const idx=words.findIndex(x=>x.id===w.id);
-  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
+  if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); upsertWordToDb(words[idx]); }
   saveWords(words);
-  _wordsDirty=true;
   setTimeout(()=>{
     currentFcIdx++;
     if(currentFcIdx>=currentFcQueue.length){
@@ -1480,26 +1474,28 @@ function confirmImportWords(){
   const existing=getWords();
   const existSet=new Set(existing.map(w=>w.word.toLowerCase()));
   let added=0,skipped=0;
+  const newWords=[];
   document.querySelectorAll('.crow-check:checked').forEach(cb=>{
     const i=cb.dataset.idx;
     const word=(document.getElementById('cw_'+i)?.textContent||'').trim();
     const meaning=(document.getElementById('cm_'+i)?.textContent||'').trim();
     if(!word)return;
     if(existSet.has(word.toLowerCase())){skipped++;return;}
-    existing.push({id:Date.now()+added,word,meaning,
+    const w={id:Date.now()+added,word,meaning,
       pos:(document.getElementById('cp_'+i)?.textContent||'').trim(),
       example:(document.getElementById('ce_'+i)?.textContent||'').trim(),
       markerColor:(document.getElementById('cc_'+i)?.textContent||'').trim(),
       tags:[],
-      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}});
+      srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}};
+    existing.push(w);
+    newWords.push(w);
     existSet.add(word.toLowerCase());
     added++;
   });
   saveWords(existing);
-  _wordsDirty=true;
   closePhotoModal();
   renderWordList();
-  syncWords();
+  newWords.forEach(w=>upsertWordToDb(w));
   if(skipped>0) alert(`${added} 件を登録しました（重複 ${skipped} 件はスキップ）`);
   else alert(`${added} 件を登録しました`);
 }
@@ -1740,15 +1736,19 @@ function toExamRow(exam,userName){
 function fromExamRow(r){
   return {id:r.id,year:r.year,round:r.round,date:r.date,sections:r.sections||{}};
 }
-async function syncExams(){
-  if(!sbClient||!getUserName()||!_examsDirty)return;
-  setSyncBadge('syncing');
+async function upsertExamToDb(exam){
+  if(!sbClient||!getUserName())return;
   try{
-    const un=getUserName();
-    await sbClient.from('eiken_exams').delete().eq('user_name',un);
-    const rows=getExams().map(e=>toExamRow(e,un));
-    if(rows.length) await sbClient.from('eiken_exams').insert(rows);
-    _examsDirty=false;
+    setSyncBadge('syncing');
+    await sbClient.from('eiken_exams').upsert(toExamRow(exam,getUserName()));
+    setSyncBadge('ok');
+  }catch(e){setSyncBadge('offline');}
+}
+async function deleteExamFromDb(id){
+  if(!sbClient||!getUserName())return;
+  try{
+    setSyncBadge('syncing');
+    await sbClient.from('eiken_exams').delete().eq('id',id).eq('user_name',getUserName());
     setSyncBadge('ok');
   }catch(e){setSyncBadge('offline');}
 }
@@ -1764,15 +1764,19 @@ function fromWordRow(r){
     example:r.example||'',markerColor:r.marker_color||'',
     tags:r.tags||[],srs:r.srs||{}};
 }
-async function syncWords(){
-  if(!sbClient||!getUserName()||!_wordsDirty)return;
-  setSyncBadge('syncing');
+async function upsertWordToDb(w){
+  if(!sbClient||!getUserName())return;
   try{
-    const un=getUserName();
-    await sbClient.from('eiken_words').delete().eq('user_name',un);
-    const rows=getWords().map(w=>toWordRow(w,un));
-    if(rows.length) await sbClient.from('eiken_words').insert(rows);
-    _wordsDirty=false;
+    setSyncBadge('syncing');
+    await sbClient.from('eiken_words').upsert(toWordRow(w,getUserName()));
+    setSyncBadge('ok');
+  }catch(e){setSyncBadge('offline');}
+}
+async function deleteWordFromDb(id){
+  if(!sbClient||!getUserName())return;
+  try{
+    setSyncBadge('syncing');
+    await sbClient.from('eiken_words').delete().eq('id',id).eq('user_name',getUserName());
     setSyncBadge('ok');
   }catch(e){setSyncBadge('offline');}
 }
@@ -1789,9 +1793,27 @@ function fromSettingsRow(r){
 async function syncSettings(){
   if(!sbClient||!getUserName())return;
   try{
-    const un=getUserName();
-    await sbClient.from('eiken_settings').upsert(toSettingsRow(getSettings(),un));
+    await sbClient.from('eiken_settings').upsert(toSettingsRow(getSettings(),getUserName()));
   }catch(e){}
+}
+
+// --- Backup ---
+async function takeBackup(){
+  const today=todayStr();
+  if(localStorage.getItem('eiken2_lastBackup')===today)return;
+  const backup={date:today,words:getWords(),exams:getExams(),settings:getSettings()};
+  // localStorage: 直近7日分保持
+  const keys=Object.keys(localStorage).filter(k=>k.startsWith('eiken2_backup_')).sort();
+  if(keys.length>=7) localStorage.removeItem(keys[0]);
+  localStorage.setItem(`eiken2_backup_${today}`,JSON.stringify(backup));
+  localStorage.setItem('eiken2_lastBackup',today);
+  // Supabase にも保存
+  if(sbClient&&getUserName()){
+    try{
+      await sbClient.from('eiken_backups').upsert({
+        user_name:getUserName(),backup_date:today,data:backup});
+    }catch(e){}
+  }
 }
 
 async function pullFromSupabase(){
@@ -1804,22 +1826,17 @@ async function pullFromSupabase(){
       sbClient.from('eiken_words').select('*').eq('user_name',un),
       sbClient.from('eiken_settings').select('*').eq('user_name',un),
     ]);
-    if(eData&&eData.length){
-      const merged=mergeById(getExams(),eData.map(fromExamRow));
-      saveExams(merged);
-    }
-    if(wData&&wData.length){
-      const merged=mergeById(getWords(),wData.map(fromWordRow));
-      saveWords(merged);
-    }
+    // DB が親: ローカルを上書き
+    if(eData) saveExams(eData.map(fromExamRow));
+    if(wData) saveWords(wData.map(fromWordRow));
     if(sData&&sData.length){
       const s=fromSettingsRow(sData[0]);
       localStorage.setItem(SETTINGS_KEY,JSON.stringify({...getSettings(),...s}));
     }
-    _wordsDirty=false;
-    _examsDirty=false;
     setSyncBadge('ok');
     renderExamList(); renderWordList(); loadSettingsUI();
+    // pull 完了後にバックアップ
+    takeBackup();
   }catch(e){setSyncBadge('offline');}
 }
 
