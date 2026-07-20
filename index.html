@@ -1210,6 +1210,9 @@ function saveWord(){
         markerColor:document.getElementById('wInpMarker').value,tags};
     }
   } else {
+    if(existing.some(w=>w.word.toLowerCase()===word.toLowerCase())){
+      alert(`「${word}」はすでに登録されています。`);return;
+    }
     existing.push({id:Date.now(),word,meaning,
       pos:document.getElementById('wInpPos').value,
       example:document.getElementById('wInpExample').value.trim(),
