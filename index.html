@@ -669,6 +669,8 @@ const SRS_INTERVALS = [1,3,7,14,30,60];
 const MARKER_COLORS = {yellow:'#ffe066',pink:'#ffa8c5',green:'#69db7c',blue:'#74c0fc',orange:'#ffa94d'};
 
 let sbClient = null;
+let _wordsDirty = false;
+let _examsDirty = false;
 let currentFcQueue = [];
 let currentFcIdx = 0;
 let currentFcStats = {ok:0,maybe:0,miss:0};
@@ -996,6 +998,7 @@ function saveExam(){
   const arr=getExams().filter(e=>e.id!==exam.id);
   arr.unshift(exam);
   saveExams(arr);
+  _examsDirty=true;
   resetExamForm();
   renderExamList();
   syncExams();
@@ -1004,6 +1007,7 @@ function saveExam(){
 function deleteExam(id){
   if(!confirm('この記録を削除しますか？'))return;
   saveExams(getExams().filter(e=>e.id!==id));
+  _examsDirty=true;
   renderExamList();
   syncExams();
 }
@@ -1220,6 +1224,7 @@ function saveWord(){
       srs:{interval:1,nextDate:todayStr(),correctCount:0,wrongCount:0,status:'new'}});
   }
   saveWords(existing);
+  _wordsDirty=true;
   closeWordModal();
   renderWordList();
   syncWords();
@@ -1227,6 +1232,7 @@ function saveWord(){
 function deleteWord(id){
   if(!confirm('この単語を削除しますか？'))return;
   saveWords(getWords().filter(w=>w.id!==id));
+  _wordsDirty=true;
   renderWordList();
   syncWords();
 }
@@ -1323,6 +1329,7 @@ function judgeCard(j){
   const idx=words.findIndex(x=>x.id===w.id);
   if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
   saveWords(words);
+  _wordsDirty=true;
   currentFcIdx++;
   if(currentFcIdx>=currentFcQueue.length){
     showFcDone();
@@ -1370,6 +1377,7 @@ function judgeQuiz(correct, btn, container, correctBtn){
   const idx=words.findIndex(x=>x.id===w.id);
   if(idx>=0){ words[idx].srs=advanceSrs(words[idx].srs||{interval:1},j); }
   saveWords(words);
+  _wordsDirty=true;
   setTimeout(()=>{
     currentFcIdx++;
     if(currentFcIdx>=currentFcQueue.length){
@@ -1488,6 +1496,7 @@ function confirmImportWords(){
     added++;
   });
   saveWords(existing);
+  _wordsDirty=true;
   closePhotoModal();
   renderWordList();
   syncWords();
@@ -1732,13 +1741,14 @@ function fromExamRow(r){
   return {id:r.id,year:r.year,round:r.round,date:r.date,sections:r.sections||{}};
 }
 async function syncExams(){
-  if(!sbClient||!getUserName())return;
+  if(!sbClient||!getUserName()||!_examsDirty)return;
   setSyncBadge('syncing');
   try{
     const un=getUserName();
     await sbClient.from('eiken_exams').delete().eq('user_name',un);
     const rows=getExams().map(e=>toExamRow(e,un));
     if(rows.length) await sbClient.from('eiken_exams').insert(rows);
+    _examsDirty=false;
     setSyncBadge('ok');
   }catch(e){setSyncBadge('offline');}
 }
@@ -1755,13 +1765,14 @@ function fromWordRow(r){
     tags:r.tags||[],srs:r.srs||{}};
 }
 async function syncWords(){
-  if(!sbClient||!getUserName())return;
+  if(!sbClient||!getUserName()||!_wordsDirty)return;
   setSyncBadge('syncing');
   try{
     const un=getUserName();
     await sbClient.from('eiken_words').delete().eq('user_name',un);
     const rows=getWords().map(w=>toWordRow(w,un));
     if(rows.length) await sbClient.from('eiken_words').insert(rows);
+    _wordsDirty=false;
     setSyncBadge('ok');
   }catch(e){setSyncBadge('offline');}
 }
@@ -1805,6 +1816,8 @@ async function pullFromSupabase(){
       const s=fromSettingsRow(sData[0]);
       localStorage.setItem(SETTINGS_KEY,JSON.stringify({...getSettings(),...s}));
     }
+    _wordsDirty=false;
+    _examsDirty=false;
     setSyncBadge('ok');
     renderExamList(); renderWordList(); loadSettingsUI();
   }catch(e){setSyncBadge('offline');}
