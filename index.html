@@ -1730,7 +1730,7 @@ function setSyncBadge(state){
 
 // --- Exams ---
 function toExamRow(exam,userName){
-  return {id:exam.id,user_name:userName,year:exam.year,round:exam.round,
+  return {id:String(exam.id),user_name:userName,year:exam.year,round:exam.round,
     date:exam.date,sections:exam.sections};
 }
 function fromExamRow(r){
@@ -1755,7 +1755,7 @@ async function deleteExamFromDb(id){
 
 // --- Words ---
 function toWordRow(w,userName){
-  return {id:w.id,user_name:userName,word:w.word,meaning:w.meaning,
+  return {id:String(w.id),user_name:userName,word:w.word,meaning:w.meaning,
     pos:w.pos||'',example:w.example||'',marker_color:w.markerColor||'',
     tags:w.tags||[],srs:w.srs||{}};
 }
