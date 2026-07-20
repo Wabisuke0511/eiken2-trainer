@@ -1733,10 +1733,10 @@ function setSyncBadge(state){
 // =============================================
 function toExamRow(exam,un){
   return {id:String(exam.id),user_name:un,year:exam.year,round:exam.round,
-    date:exam.date,sections:exam.sections};
+    exam_date:exam.date,sections:exam.sections};
 }
 function fromExamRow(r){
-  return {id:r.id,year:r.year,round:r.round,date:r.date,sections:r.sections||{}};
+  return {id:r.id,year:r.year,round:r.round,date:r.exam_date||r.date||'',sections:r.sections||{}};
 }
 function toWordRow(w,un){
   return {id:String(w.id),user_name:un,word:w.word,meaning:w.meaning,
