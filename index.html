@@ -1257,7 +1257,8 @@ function advanceSrs(srs, judgement){
   }
   const next=new Date(); next.setDate(next.getDate()+s.interval);
   s.nextDate=next.toISOString().split('T')[0];
-  s.status=(s.correctCount||0)>=4?'mastered':'learning';
+  const ok=s.correctCount||0; const ng=s.wrongCount||0;
+  s.status=ok>=3?'mastered':(ok+ng>0?'learning':'new');
   return s;
 }
 
