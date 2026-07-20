@@ -35,6 +35,7 @@ header{
 }
 .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .app-title{font-size:20px;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+.app-version{font-size:10px;color:var(--text2);letter-spacing:.2px;margin-top:1px}
 .header-right{display:flex;align-items:center;gap:8px}
 .countdown{font-size:12px;color:var(--orange);font-weight:600}
 .sync-badge{font-size:12px;color:var(--text2)}
@@ -312,7 +313,10 @@ input[type=checkbox]{accent-color:var(--primary)}
 <!-- ===== STICKY HEADER ===== -->
 <header>
   <div class="header-top">
-    <div class="app-title">📖 英検2級トレーナー</div>
+    <div>
+      <div class="app-title">📖 英検2級トレーナー</div>
+      <div class="app-version">v1.0.0 &nbsp;202507201800</div>
+    </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
       <span id="syncBadge" class="sync-badge offline">オフライン</span>
