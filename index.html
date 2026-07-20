@@ -527,8 +527,9 @@ input[type=checkbox]{accent-color:var(--primary)}
     <input type="hidden" id="editWordId">
     <div class="form-row">
       <label class="form-label">英単語</label>
-      <input id="wInpWord" class="form-input" placeholder="例: acquire">
+      <input id="wInpWord" class="form-input" placeholder="例: acquire" onblur="autoFillWord()">
     </div>
+    <div id="wAutoFillMsg" style="display:none;font-size:.8rem;color:var(--text2);margin-bottom:8px">⏳ 自動入力中…</div>
     <div class="form-row">
       <label class="form-label">意味</label>
       <input id="wInpMeaning" class="form-input" placeholder="例: 取得する">
@@ -1144,6 +1145,32 @@ function renderWordList(){
 }
 
 function setTagFilter(tag){ activeTagFilter=tag; renderWordList(); }
+
+async function autoFillWord(){
+  const word=document.getElementById('wInpWord').value.trim();
+  if(!word)return;
+  // 編集モードや既に意味が入っている場合はスキップ
+  if(document.getElementById('editWordId').value)return;
+  if(document.getElementById('wInpMeaning').value.trim())return;
+  const msg=document.getElementById('wAutoFillMsg');
+  msg.style.display='';
+  try{
+    const res=await fetch(`${_SB_URL}/functions/v1/lookup-word`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${_SB_KEY}`},
+      body:JSON.stringify({word}),
+    });
+    const data=await res.json();
+    if(data.meaning) document.getElementById('wInpMeaning').value=data.meaning;
+    if(data.pos){
+      const sel=document.getElementById('wInpPos');
+      const opt=[...sel.options].find(o=>o.value===data.pos);
+      if(opt) sel.value=data.pos;
+    }
+    if(data.example) document.getElementById('wInpExample').value=data.example;
+  }catch(e){}
+  msg.style.display='none';
+}
 
 function openAddWordModal(){
   document.getElementById('wordModalTitle').textContent='単語を追加';
