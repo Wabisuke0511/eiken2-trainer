@@ -1728,123 +1728,122 @@ function setSyncBadge(state){
   el.textContent={ok:'同期済み',syncing:'同期中…',offline:'オフライン'}[state]||'オフライン';
 }
 
-// --- Exams ---
-function toExamRow(exam,userName){
-  return {id:String(exam.id),user_name:userName,year:exam.year,round:exam.round,
+// =============================================
+// ROW CONVERTERS
+// =============================================
+function toExamRow(exam,un){
+  return {id:String(exam.id),user_name:un,year:exam.year,round:exam.round,
     date:exam.date,sections:exam.sections};
 }
 function fromExamRow(r){
   return {id:r.id,year:r.year,round:r.round,date:r.date,sections:r.sections||{}};
 }
-async function upsertExamToDb(exam){
-  if(!sbClient||!getUserName())return;
-  try{
-    setSyncBadge('syncing');
-    await sbClient.from('eiken_exams').upsert(toExamRow(exam,getUserName()));
-    setSyncBadge('ok');
-  }catch(e){setSyncBadge('offline');}
-}
-async function deleteExamFromDb(id){
-  if(!sbClient||!getUserName())return;
-  try{
-    setSyncBadge('syncing');
-    await sbClient.from('eiken_exams').delete().eq('id',id).eq('user_name',getUserName());
-    setSyncBadge('ok');
-  }catch(e){setSyncBadge('offline');}
-}
-
-// --- Words ---
-function toWordRow(w,userName){
-  return {id:String(w.id),user_name:userName,word:w.word,meaning:w.meaning,
+function toWordRow(w,un){
+  return {id:String(w.id),user_name:un,word:w.word,meaning:w.meaning,
     pos:w.pos||'',example:w.example||'',marker_color:w.markerColor||'',
     tags:w.tags||[],srs:w.srs||{}};
 }
 function fromWordRow(r){
   return {id:r.id,word:r.word,meaning:r.meaning,pos:r.pos||'',
     example:r.example||'',markerColor:r.marker_color||'',
-    tags:r.tags||[],srs:r.srs||{}};
+    tags:Array.isArray(r.tags)?r.tags:[],
+    srs:r.srs&&typeof r.srs==='object'?r.srs:{}};
 }
-async function upsertWordToDb(w){
-  if(!sbClient||!getUserName())return;
-  try{
-    setSyncBadge('syncing');
-    await sbClient.from('eiken_words').upsert(toWordRow(w,getUserName()));
-    setSyncBadge('ok');
-  }catch(e){setSyncBadge('offline');}
-}
-async function deleteWordFromDb(id){
-  if(!sbClient||!getUserName())return;
-  try{
-    setSyncBadge('syncing');
-    await sbClient.from('eiken_words').delete().eq('id',id).eq('user_name',getUserName());
-    setSyncBadge('ok');
-  }catch(e){setSyncBadge('offline');}
-}
-
-// --- Settings ---
-function toSettingsRow(s,userName){
-  return {id:userName,user_name:userName,exam_date:s.examDate||null,
+function toSettingsRow(s,un){
+  return {id:un,user_name:un,exam_date:s.examDate||null,
     target_rate:s.targetRate||70,section_totals:s.sectionTotals||{}};
 }
 function fromSettingsRow(r){
   return {examDate:r.exam_date||'',targetRate:r.target_rate||70,
     sectionTotals:r.section_totals||{}};
 }
+
+// =============================================
+// DB WRITE HELPERS  (即時書き込み、delete-all なし)
+// =============================================
+async function dbWrite(table, row){
+  if(!sbClient||!getUserName())return false;
+  setSyncBadge('syncing');
+  const {error}=await sbClient.from(table).upsert(row,{onConflict:'id'});
+  if(error){
+    console.error(`[DB] upsert ${table}:`,error.message,error);
+    setSyncBadge('offline');
+    return false;
+  }
+  setSyncBadge('ok');
+  return true;
+}
+async function dbDelete(table, id){
+  if(!sbClient||!getUserName())return false;
+  setSyncBadge('syncing');
+  const {error}=await sbClient.from(table).delete()
+    .eq('id',String(id)).eq('user_name',getUserName());
+  if(error){
+    console.error(`[DB] delete ${table}:`,error.message,error);
+    setSyncBadge('offline');
+    return false;
+  }
+  setSyncBadge('ok');
+  return true;
+}
+
+function upsertWordToDb(w){ return dbWrite('eiken_words',toWordRow(w,getUserName())); }
+function deleteWordFromDb(id){ return dbDelete('eiken_words',id); }
+function upsertExamToDb(exam){ return dbWrite('eiken_exams',toExamRow(exam,getUserName())); }
+function deleteExamFromDb(id){ return dbDelete('eiken_exams',id); }
 async function syncSettings(){
   if(!sbClient||!getUserName())return;
-  try{
-    await sbClient.from('eiken_settings').upsert(toSettingsRow(getSettings(),getUserName()));
-  }catch(e){}
+  const {error}=await sbClient.from('eiken_settings')
+    .upsert(toSettingsRow(getSettings(),getUserName()),{onConflict:'id'});
+  if(error) console.error('[DB] upsert settings:',error.message);
 }
 
-// --- Backup ---
-async function takeBackup(){
-  const today=todayStr();
-  if(localStorage.getItem('eiken2_lastBackup')===today)return;
-  const backup={date:today,words:getWords(),exams:getExams(),settings:getSettings()};
-  // localStorage: 直近7日分保持
-  const keys=Object.keys(localStorage).filter(k=>k.startsWith('eiken2_backup_')).sort();
-  if(keys.length>=7) localStorage.removeItem(keys[0]);
-  localStorage.setItem(`eiken2_backup_${today}`,JSON.stringify(backup));
-  localStorage.setItem('eiken2_lastBackup',today);
-  // Supabase にも保存
-  if(sbClient&&getUserName()){
-    try{
-      await sbClient.from('eiken_backups').upsert({
-        user_name:getUserName(),backup_date:today,data:backup});
-    }catch(e){}
-  }
-}
-
+// =============================================
+// PULL (起動時: DB が親、ただし DB が空でもローカルを消さない)
+// =============================================
 async function pullFromSupabase(){
   if(!sbClient||!getUserName()){setSyncBadge('offline');return;}
   setSyncBadge('syncing');
   const un=getUserName();
-  try{
-    const [{data:eData},{data:wData},{data:sData}]=await Promise.all([
-      sbClient.from('eiken_exams').select('*').eq('user_name',un),
-      sbClient.from('eiken_words').select('*').eq('user_name',un),
-      sbClient.from('eiken_settings').select('*').eq('user_name',un),
-    ]);
-    // DB が親: ローカルを上書き
-    if(eData) saveExams(eData.map(fromExamRow));
-    if(wData) saveWords(wData.map(fromWordRow));
-    if(sData&&sData.length){
-      const s=fromSettingsRow(sData[0]);
-      localStorage.setItem(SETTINGS_KEY,JSON.stringify({...getSettings(),...s}));
-    }
-    setSyncBadge('ok');
-    renderExamList(); renderWordList(); loadSettingsUI();
-    // pull 完了後にバックアップ
-    takeBackup();
-  }catch(e){setSyncBadge('offline');}
+  const [{data:eData,error:eErr},{data:wData,error:wErr},{data:sData}]=await Promise.all([
+    sbClient.from('eiken_exams').select('*').eq('user_name',un),
+    sbClient.from('eiken_words').select('*').eq('user_name',un),
+    sbClient.from('eiken_settings').select('*').eq('user_name',un),
+  ]);
+  if(eErr||wErr){
+    console.error('[DB] pull error:',eErr||wErr);
+    setSyncBadge('offline');
+    return;
+  }
+  // DB にデータがある場合のみローカルを上書き（空DBでローカルを消さない）
+  if(eData&&eData.length) saveExams(eData.map(fromExamRow));
+  if(wData&&wData.length) saveWords(wData.map(fromWordRow));
+  if(sData&&sData.length){
+    localStorage.setItem(SETTINGS_KEY,
+      JSON.stringify({...getSettings(),...fromSettingsRow(sData[0])}));
+  }
+  setSyncBadge('ok');
+  renderExamList(); renderWordList(); loadSettingsUI();
+  takeBackup();
 }
 
-function mergeById(local,remote){
-  const map=new Map();
-  local.forEach(r=>map.set(r.id,r));
-  remote.forEach(r=>map.set(r.id,r));
-  return [...map.values()].sort((a,b)=>b.id-a.id);
+// =============================================
+// BACKUP (1日1回: localStorage 7日 + Supabase)
+// =============================================
+async function takeBackup(){
+  const today=todayStr();
+  if(localStorage.getItem('eiken2_lastBackup')===today)return;
+  const backup={date:today,words:getWords(),exams:getExams(),settings:getSettings()};
+  const keys=Object.keys(localStorage).filter(k=>k.startsWith('eiken2_backup_')).sort();
+  if(keys.length>=7) localStorage.removeItem(keys[0]);
+  localStorage.setItem(`eiken2_backup_${today}`,JSON.stringify(backup));
+  localStorage.setItem('eiken2_lastBackup',today);
+  if(sbClient&&getUserName()){
+    const {error}=await sbClient.from('eiken_backups')
+      .upsert({user_name:getUserName(),backup_date:today,data:backup},
+        {onConflict:'user_name,backup_date'});
+    if(error) console.error('[DB] backup:',error.message);
+  }
 }
 
 // =============================================
