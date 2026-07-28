@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.1.1 &nbsp;2026年7月28日 18:17</div>
+      <div class="app-version">v1.1.2 &nbsp;2026年7月28日 18:36</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -1067,6 +1067,21 @@ function renderExamList(){
   el.innerHTML=exams.map(exam=>{
     const{pct,correct,total}=calcExamScore(exam);
     const reviewed=SECTION_DEFS.filter(d=>exam.sections?.[d.key]?.reviewed).length;
+    // ライティングルーブリック合計
+    const wKeys=['content','structure','vocab','grammar'];
+    const w4aScores=wKeys.map(k=>exam.sections?.w4a?.[k]||0);
+    const w4bScores=wKeys.map(k=>exam.sections?.w4b?.[k]||0);
+    const w4aTotal=w4aScores.reduce((a,b)=>a+b,0);
+    const w4bTotal=w4bScores.reduce((a,b)=>a+b,0);
+    const w4aMax=16, w4bMax=16;
+    const w4aPct=Math.round(w4aTotal/w4aMax*100);
+    const w4bPct=Math.round(w4bTotal/w4bMax*100);
+    // 予想合計点
+    const mcPoints=SECTION_DEFS.reduce((sum,d)=>{
+      return sum+(exam.sections?.[d.key]?.correct||0);
+    },0);
+    const estTotal=mcPoints+w4aTotal+w4bTotal;
+    const estMax=SECTION_DEFS.reduce((sum,d)=>sum+(exam.sections?.[d.key]?.total||getSectionTotals()[d.key]),0)+w4aMax+w4bMax;
     return `<div class="exam-item">
       <div class="exam-item-head">
         <div>
@@ -1083,23 +1098,40 @@ function renderExamList(){
       </div>
       <div class="score-table-wrap">
         <table class="score-table">
-          <tr><th>分野</th><th>正答</th><th>正答率</th><th></th></tr>
+          <tr><th>分野</th><th>正答率</th><th>予想点数</th><th></th></tr>
           ${SECTION_DEFS.map(d=>{
             const sec=exam.sections?.[d.key]||{};
             const c=sec.correct||0,t=sec.total||getSectionTotals()[d.key];
             const p=t>0?Math.round(c/t*100):0;
             return `<tr>
               <td style="font-size:.8rem">${d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS')}</td>
-              <td>${c}/${t}</td>
               <td class="pct">${p}%</td>
+              <td style="font-weight:700;color:var(--text)">${c}<span style="font-size:.75rem;color:var(--text2)">/${t}点</span></td>
               <td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${p}%"></div></div></td>
             </tr>`;
           }).join('')}
-          <tr><td colspan="4" style="font-size:.8rem;color:var(--text2);padding-top:4px">
-            ライティング: 要約 ${['content','structure','vocab','grammar'].map(k=>exam.sections?.w4a?.[k]||0).join('/')}
-            ／ 意見 ${['content','structure','vocab','grammar'].map(k=>exam.sections?.w4b?.[k]||0).join('/')}
-          </td></tr>
+          <tr>
+            <td style="font-size:.8rem">✍️ 英文要約</td>
+            <td class="pct">${w4aPct}%</td>
+            <td style="font-weight:700;color:var(--text)">${w4aTotal}<span style="font-size:.75rem;color:var(--text2)">/${w4aMax}点</span></td>
+            <td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${w4aPct}%"></div></div></td>
+          </tr>
+          <tr>
+            <td style="font-size:.8rem">✍️ 意見論述</td>
+            <td class="pct">${w4bPct}%</td>
+            <td style="font-weight:700;color:var(--text)">${w4bTotal}<span style="font-size:.75rem;color:var(--text2)">/${w4bMax}点</span></td>
+            <td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${w4bPct}%"></div></div></td>
+          </tr>
+          <tr style="border-top:2px solid var(--border)">
+            <td style="font-size:.8rem;font-weight:700">合計（推定）</td>
+            <td class="pct">${pct}%</td>
+            <td style="font-weight:800;color:var(--primary)">${estTotal}<span style="font-size:.75rem;color:var(--text2)">/${estMax}点</span></td>
+            <td></td>
+          </tr>
         </table>
+      </div>
+      <div style="font-size:.75rem;color:var(--text2);margin-top:6px">
+        ライティング詳細 — 要約: ${w4aScores.join('/')} ／ 意見: ${w4bScores.join('/')}（内容/構成/語彙/文法）
       </div>
     </div>`;
   }).join('');
