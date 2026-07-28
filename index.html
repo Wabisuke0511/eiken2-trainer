@@ -962,7 +962,7 @@ function openExamModal(id){
   resetExamForm();
 
   if(id){
-    const exam = getExams().find(e => e.id===id);
+    const exam = getExams().find(e => String(e.id)===String(id));
     if(!exam) return;
     document.getElementById('examFormTitle').textContent = '過去問を編集';
     document.getElementById('examEditBanner').style.display = 'flex';
