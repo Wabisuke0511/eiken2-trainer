@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.1.4 &nbsp;2026年7月28日 19:02</div>
+      <div class="app-version">v1.1.5 &nbsp;2026年7月28日 19:13</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -1637,10 +1637,14 @@ function renderKPI(){
 }
 
 function examLabel(e){ return `${e.year}-${e.round.replace('第','').replace('回','')}`; }
+function examSortKey(e){
+  const r=(e.round||'').replace('第','').replace('回','').padStart(2,'0');
+  return `${e.year||0}-${r}`;
+}
 
 function renderTrendChart(){
   destroyChart('trend');
-  const exams=[...getExams()].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
+  const exams=[...getExams()].sort((a,b)=>examSortKey(a)>examSortKey(b)?1:examSortKey(a)<examSortKey(b)?-1:0);
   if(exams.length<1){return;}
   const labels=exams.map(examLabel);
   const colors={w1:'#4b9eff',w2:'#51cf66',w3:'#ff6b6b',l1:'#ffa94d',l2:'#ae3ec9',w4a:'#f06595',w4b:'#cc5de8'};
@@ -1687,7 +1691,7 @@ function renderTrendChart(){
 
 function renderTotalChart(){
   destroyChart('total');
-  const exams=[...getExams()].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
+  const exams=[...getExams()].sort((a,b)=>examSortKey(a)>examSortKey(b)?1:examSortKey(a)<examSortKey(b)?-1:0);
   if(!exams.length)return;
   const s=getSettings(); const target=s.targetRate||70;
   const labels=exams.map(examLabel);
@@ -1708,7 +1712,7 @@ function renderTotalChart(){
 
 function renderWritingChart(){
   destroyChart('writing');
-  const exams=[...getExams()].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
+  const exams=[...getExams()].sort((a,b)=>examSortKey(a)>examSortKey(b)?1:examSortKey(a)<examSortKey(b)?-1:0);
   if(!exams.length)return;
   const key=activeWritingTab==='A'?'w4a':'w4b';
   const labels=exams.map(examLabel);
