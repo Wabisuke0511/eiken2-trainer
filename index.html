@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.1.5 &nbsp;2026年7月28日 19:13</div>
+      <div class="app-version">v1.1.6 &nbsp;2026年7月28日 21:49</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -836,7 +836,8 @@ function buildScoreBlock(def, totals){
     <div class="sec-pct-label" id="secPct_${def.key}">–%</div>
     <div style="margin-top:10px">
       <label class="review-check">
-        <input type="checkbox" id="secRev_${def.key}"> 解き直し済み
+        <input type="checkbox" id="secRev_${def.key}"
+          onchange="if(this.checked&&!document.getElementById('secRevDate_${def.key}').value)document.getElementById('secRevDate_${def.key}').value=todayStr()"> 解き直し済み
         <input type="date" id="secRevDate_${def.key}" class="form-input"
           style="width:auto;font-size:13px;margin-left:8px;padding:6px 10px">
       </label>
