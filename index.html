@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.1.2 &nbsp;2026年7月28日 18:36</div>
+      <div class="app-version">v1.1.3 &nbsp;2026年7月28日 18:53</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -456,10 +456,6 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="card">
     <div class="chart-title">分野別正答率の推移</div>
     <div class="chart-wrap"><canvas id="chartTrend"></canvas></div>
-  </div>
-  <div class="card">
-    <div class="chart-title">直近回レーダー</div>
-    <div class="chart-wrap" style="max-width:300px"><canvas id="chartRadar"></canvas></div>
   </div>
   <div class="card">
     <div class="chart-title">合計正答率の推移</div>
@@ -1612,7 +1608,6 @@ function switchWritingTab(t){
 function renderGraphs(){
   renderKPI();
   renderTrendChart();
-  renderRadarChart();
   renderTotalChart();
   renderWritingChart();
   renderReviewChart();
@@ -1645,20 +1640,42 @@ function examLabel(e){ return `${e.year}-${e.round.replace('第','').replace('�
 
 function renderTrendChart(){
   destroyChart('trend');
-  const exams=[...getExams()].reverse();
+  const exams=[...getExams()].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
   if(exams.length<1){return;}
   const labels=exams.map(examLabel);
-  const colors={w1:'#4b9eff',w2:'#51cf66',w3:'#ff6b6b',l1:'#ffa94d',l2:'#ae3ec9'};
-  const datasets=SECTION_DEFS.map(d=>({
-    label:d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS'),
-    data:exams.map(e=>{
-      const s=e.sections?.[d.key]||{};
-      const t=s.total||getSectionTotals()[d.key];
-      return t>0?Math.round((s.correct||0)/t*100):null;
-    }),
-    borderColor:colors[d.key],backgroundColor:'transparent',
-    tension:.3,pointRadius:4,borderWidth:2,
-  }));
+  const colors={w1:'#4b9eff',w2:'#51cf66',w3:'#ff6b6b',l1:'#ffa94d',l2:'#ae3ec9',w4a:'#f06595',w4b:'#cc5de8'};
+  const datasets=[
+    ...SECTION_DEFS.map(d=>({
+      label:d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS'),
+      data:exams.map(e=>{
+        const s=e.sections?.[d.key]||{};
+        const t=s.total||getSectionTotals()[d.key];
+        return t>0?Math.round((s.correct||0)/t*100):null;
+      }),
+      borderColor:colors[d.key],backgroundColor:'transparent',
+      tension:.3,pointRadius:4,borderWidth:2,
+    })),
+    {
+      label:'✍️ 英文要約',
+      data:exams.map(e=>{
+        const wr=e.sections?.w4a||{};
+        const sum=WRITING_KEYS.reduce((a,k)=>a+(wr[k]||0),0);
+        return Math.round(sum/16*100);
+      }),
+      borderColor:colors.w4a,backgroundColor:'transparent',
+      tension:.3,pointRadius:4,borderWidth:2,borderDash:[4,3],
+    },
+    {
+      label:'✍️ 意見論述',
+      data:exams.map(e=>{
+        const wr=e.sections?.w4b||{};
+        const sum=WRITING_KEYS.reduce((a,k)=>a+(wr[k]||0),0);
+        return Math.round(sum/16*100);
+      }),
+      borderColor:colors.w4b,backgroundColor:'transparent',
+      tension:.3,pointRadius:4,borderWidth:2,borderDash:[4,3],
+    },
+  ];
   const ctx=document.getElementById('chartTrend').getContext('2d');
   chartInstances.trend=new Chart(ctx,{
     type:'line',data:{labels,datasets},
@@ -1667,24 +1684,6 @@ function renderTrendChart(){
   });
 }
 
-function renderRadarChart(){
-  destroyChart('radar');
-  const exams=getExams();
-  if(!exams.length)return;
-  const latest=exams[0];
-  const labels=SECTION_DEFS.map(d=>d.label.replace(/筆記[0-9] /,'').replace(/リスニング/,'LS'));
-  const data=SECTION_DEFS.map(d=>{
-    const s=latest.sections?.[d.key]||{};
-    const t=s.total||getSectionTotals()[d.key];
-    return t>0?Math.round((s.correct||0)/t*100):0;
-  });
-  const ctx=document.getElementById('chartRadar').getContext('2d');
-  chartInstances.radar=new Chart(ctx,{
-    type:'radar',data:{labels,datasets:[{label:'正答率',data,
-      backgroundColor:'rgba(0,122,255,.15)',borderColor:'#007aff',pointBackgroundColor:'#007aff',borderWidth:2}]},
-    options:{responsive:true,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{stepSize:25}}}}
-  });
-}
 
 function renderTotalChart(){
   destroyChart('total');
@@ -1709,16 +1708,16 @@ function renderTotalChart(){
 
 function renderWritingChart(){
   destroyChart('writing');
-  const exams=[...getExams()].reverse();
+  const exams=[...getExams()].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
   if(!exams.length)return;
   const key=activeWritingTab==='A'?'w4a':'w4b';
   const labels=exams.map(examLabel);
   const colors=['#4b9eff','#51cf66','#ffa94d','#ff6b6b'];
   const datasets=WRITING_KEYS.map((k,i)=>({
     label:WRITING_LABELS[i],
-    data:exams.map(e=>e.sections?.[key]?.[k]||0),
-    borderColor:colors[i],backgroundColor:colors[i]+'33',
-    tension:.3,pointRadius:3,fill:true,borderWidth:2,
+    data:exams.map(e=>e.sections?.[key]?.[k]??null),
+    borderColor:colors[i],backgroundColor:'transparent',
+    tension:.3,pointRadius:4,fill:false,borderWidth:2,
   }));
   const ctx=document.getElementById('chartWriting').getContext('2d');
   chartInstances.writing=new Chart(ctx,{
