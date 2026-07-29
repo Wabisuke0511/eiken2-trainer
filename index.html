@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.1.6 &nbsp;2026年7月28日 21:49</div>
+      <div class="app-version">v1.2.0 &nbsp;2026年7月29日 15:42</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -848,7 +848,15 @@ function buildScoreBlock(def, totals){
 function buildRubricBlock(def){
   return `
   <div class="sec-block" id="secBlock_${def.key}">
-    <div class="sec-block-header">${def.label}</div>
+    <div class="sec-block-header" style="display:flex;align-items:center;justify-content:space-between">
+      <span>${def.label}</span>
+      <label style="cursor:pointer">
+        <span class="btn btn-secondary btn-sm" style="font-size:13px;padding:6px 12px">📷 AI採点</span>
+        <input type="file" accept="image/*" capture="environment" style="display:none"
+          onchange="handleWritingPhoto('${def.key}',this)">
+      </label>
+    </div>
+    <div id="wScore_msg_${def.key}" style="font-size:.8rem;color:var(--text2);min-height:1.2em;margin-bottom:8px"></div>
     <div class="rubric-grid">
       ${WRITING_KEYS.map((k,i)=>`
       <div class="rubric-item">
@@ -857,6 +865,8 @@ function buildRubricBlock(def){
           placeholder="–" inputmode="numeric" oninput="calcExamTotal()">
       </div>`).join('')}
     </div>
+    <div id="wScore_feedback_${def.key}" style="display:none;font-size:.8rem;color:var(--text2);
+      background:var(--input-bg);border-radius:var(--radius-sm);padding:8px 12px;margin-top:8px;line-height:1.6"></div>
   </div>`;
 }
 
@@ -1591,6 +1601,40 @@ function fileToBase64(file){
     r.onerror=rej;
     r.readAsDataURL(file);
   });
+}
+
+// =============================================
+// WRITING AI SCORING
+// =============================================
+async function handleWritingPhoto(defKey, input){
+  if(!input.files[0])return;
+  const file=input.files[0]; input.value='';
+  const msg=document.getElementById('wScore_msg_'+defKey);
+  const fbEl=document.getElementById('wScore_feedback_'+defKey);
+  msg.textContent='⏳ AIが採点中…';
+  if(fbEl) fbEl.style.display='none';
+  try{
+    const base64=await fileToBase64(file);
+    const res=await fetch(`${_SB_URL}/functions/v1/score-writing`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${_SB_KEY}`},
+      body:JSON.stringify({imageBase64:base64,mediaType:file.type||'image/jpeg',writingType:defKey}),
+    });
+    const data=await res.json();
+    if(data.error){msg.textContent='❌ '+data.error;return;}
+    WRITING_KEYS.forEach(k=>{
+      const el=document.getElementById(`rub_${defKey}_${k}`);
+      if(el&&data[k]!==undefined) el.value=data[k];
+    });
+    calcExamTotal();
+    msg.textContent='✅ AI採点完了（内容 '+data.content+' / 構成 '+data.structure+' / 語彙 '+data.vocab+' / 文法 '+data.grammar+'）';
+    if(fbEl&&data.feedback){
+      fbEl.textContent='💬 '+data.feedback;
+      fbEl.style.display='';
+    }
+  }catch(e){
+    msg.textContent='❌ 通信エラー: '+e.message;
+  }
 }
 
 // =============================================
