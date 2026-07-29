@@ -318,7 +318,7 @@ input[type=checkbox]{accent-color:var(--primary)}
   <div class="header-top">
     <div>
       <div class="app-title">📖 英検2級トレーナー</div>
-      <div class="app-version">v1.2.0 &nbsp;2026年7月29日 15:42</div>
+      <div class="app-version">v1.2.1 &nbsp;2026年7月29日 15:49</div>
     </div>
     <div class="header-right">
       <span id="countdown" class="countdown"></span>
@@ -625,6 +625,50 @@ input[type=checkbox]{accent-color:var(--primary)}
 </div>
 
 <!-- ===== FLASHCARD OVERLAY ===== -->
+<!-- ===== WRITING SCORE MODAL ===== -->
+<div id="writingScoreOverlay" class="modal-overlay hidden">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">✍️ ライティング AI採点</div>
+    <p id="writingScoreLabel" style="font-size:.85rem;color:var(--text2);margin-bottom:16px"></p>
+
+    <!-- 問題アップロード -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">① 問題文の写真</div>
+      <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:8px;border:2px dashed var(--border);border-radius:var(--radius);
+        padding:20px;cursor:pointer;background:var(--input-bg);transition:.15s"
+        id="wqLabel" onclick="">
+        <span style="font-size:2rem">📄</span>
+        <span style="font-size:13px;color:var(--text2)" id="wqName">タップして選択 / 撮影</span>
+        <input type="file" accept="image/*" capture="environment" style="display:none"
+          id="wqInput" onchange="previewWritingFile('wq',this)">
+      </label>
+    </div>
+
+    <!-- 解答アップロード -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">② 解答の写真</div>
+      <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:8px;border:2px dashed var(--border);border-radius:var(--radius);
+        padding:20px;cursor:pointer;background:var(--input-bg);transition:.15s"
+        id="waLabel">
+        <span style="font-size:2rem">✏️</span>
+        <span style="font-size:13px;color:var(--text2)" id="waName">タップして選択 / 撮影</span>
+        <input type="file" accept="image/*" capture="environment" style="display:none"
+          id="waInput" onchange="previewWritingFile('wa',this)">
+      </label>
+    </div>
+
+    <div id="writingScoreMsg" style="font-size:.85rem;color:var(--text2);min-height:1.2em;margin-bottom:8px"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeWritingScoreModal()">キャンセル</button>
+      <button class="btn btn-primary" style="flex:1" id="writingScoreBtn"
+        onclick="submitWritingScore()">📤 採点する</button>
+    </div>
+  </div>
+</div>
+
 <div id="fcOverlay" class="fc-overlay hidden">
   <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:420px;margin-bottom:8px">
     <button class="btn btn-secondary btn-sm" onclick="closeFc()">✕ 終了</button>
@@ -850,11 +894,8 @@ function buildRubricBlock(def){
   <div class="sec-block" id="secBlock_${def.key}">
     <div class="sec-block-header" style="display:flex;align-items:center;justify-content:space-between">
       <span>${def.label}</span>
-      <label style="cursor:pointer">
-        <span class="btn btn-secondary btn-sm" style="font-size:13px;padding:6px 12px">📷 AI採点</span>
-        <input type="file" accept="image/*" capture="environment" style="display:none"
-          onchange="handleWritingPhoto('${def.key}',this)">
-      </label>
+      <button class="btn btn-secondary btn-sm" style="font-size:13px;padding:6px 12px"
+        onclick="openWritingScoreModal('${def.key}','${def.label}')">📷 AI採点</button>
     </div>
     <div id="wScore_msg_${def.key}" style="font-size:.8rem;color:var(--text2);min-height:1.2em;margin-bottom:8px"></div>
     <div class="rubric-grid">
@@ -1606,34 +1647,67 @@ function fileToBase64(file){
 // =============================================
 // WRITING AI SCORING
 // =============================================
-async function handleWritingPhoto(defKey, input){
-  if(!input.files[0])return;
-  const file=input.files[0]; input.value='';
-  const msg=document.getElementById('wScore_msg_'+defKey);
-  const fbEl=document.getElementById('wScore_feedback_'+defKey);
-  msg.textContent='⏳ AIが採点中…';
-  if(fbEl) fbEl.style.display='none';
+let _writingScoreKey = '';
+let _wqFile = null;
+let _waFile = null;
+
+function openWritingScoreModal(defKey, label){
+  _writingScoreKey = defKey;
+  _wqFile = null; _waFile = null;
+  document.getElementById('writingScoreLabel').textContent = label + ' の問題文と解答を撮影してアップロードしてください。';
+  document.getElementById('writingScoreMsg').textContent = '';
+  document.getElementById('wqName').textContent = 'タップして選択 / 撮影';
+  document.getElementById('waName').textContent = 'タップして選択 / 撮影';
+  document.getElementById('wqInput').value = '';
+  document.getElementById('waInput').value = '';
+  document.getElementById('writingScoreBtn').disabled = false;
+  document.getElementById('writingScoreOverlay').classList.remove('hidden');
+}
+function closeWritingScoreModal(){
+  document.getElementById('writingScoreOverlay').classList.add('hidden');
+}
+
+function previewWritingFile(prefix, input){
+  if(!input.files[0]) return;
+  const file = input.files[0];
+  if(prefix === 'wq'){ _wqFile = file; document.getElementById('wqName').textContent = '✅ ' + file.name; }
+  else              { _waFile = file; document.getElementById('waName').textContent = '✅ ' + file.name; }
+}
+
+async function submitWritingScore(){
+  if(!_waFile){ document.getElementById('writingScoreMsg').textContent = '❌ 解答の写真は必須です。'; return; }
+  const btn = document.getElementById('writingScoreBtn');
+  btn.disabled = true;
+  document.getElementById('writingScoreMsg').textContent = '⏳ AIが採点中…';
   try{
-    const base64=await fileToBase64(file);
-    const res=await fetch(`${_SB_URL}/functions/v1/score-writing`,{
+    const answerB64 = await fileToBase64(_waFile);
+    const questionB64 = _wqFile ? await fileToBase64(_wqFile) : null;
+    const res = await fetch(`${_SB_URL}/functions/v1/score-writing`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${_SB_KEY}`},
-      body:JSON.stringify({imageBase64:base64,mediaType:file.type||'image/jpeg',writingType:defKey}),
+      body:JSON.stringify({
+        answerBase64: answerB64,
+        answerMediaType: _waFile.type||'image/jpeg',
+        questionBase64: questionB64,
+        questionMediaType: _wqFile ? (_wqFile.type||'image/jpeg') : null,
+        writingType: _writingScoreKey,
+      }),
     });
-    const data=await res.json();
-    if(data.error){msg.textContent='❌ '+data.error;return;}
+    const data = await res.json();
+    if(data.error){ document.getElementById('writingScoreMsg').textContent = '❌ ' + data.error; btn.disabled=false; return; }
     WRITING_KEYS.forEach(k=>{
-      const el=document.getElementById(`rub_${defKey}_${k}`);
-      if(el&&data[k]!==undefined) el.value=data[k];
+      const el = document.getElementById(`rub_${_writingScoreKey}_${k}`);
+      if(el && data[k] !== undefined) el.value = data[k];
     });
     calcExamTotal();
-    msg.textContent='✅ AI採点完了（内容 '+data.content+' / 構成 '+data.structure+' / 語彙 '+data.vocab+' / 文法 '+data.grammar+'）';
-    if(fbEl&&data.feedback){
-      fbEl.textContent='💬 '+data.feedback;
-      fbEl.style.display='';
-    }
+    const msg = document.getElementById('wScore_msg_'+_writingScoreKey);
+    if(msg) msg.textContent = '✅ AI採点完了（内容 '+data.content+' / 構成 '+data.structure+' / 語彙 '+data.vocab+' / 文法 '+data.grammar+'）';
+    const fbEl = document.getElementById('wScore_feedback_'+_writingScoreKey);
+    if(fbEl && data.feedback){ fbEl.textContent = '💬 '+data.feedback; fbEl.style.display=''; }
+    closeWritingScoreModal();
   }catch(e){
-    msg.textContent='❌ 通信エラー: '+e.message;
+    document.getElementById('writingScoreMsg').textContent = '❌ 通信エラー: ' + e.message;
+    btn.disabled = false;
   }
 }
 
