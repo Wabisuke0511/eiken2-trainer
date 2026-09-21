@@ -552,7 +552,8 @@ input[type=checkbox]{accent-color:var(--primary)}
     <input type="hidden" id="editWordId">
     <div class="form-row">
       <label class="form-label">英単語</label>
-      <input id="wInpWord" class="form-input" placeholder="例: acquire" onblur="autoFillWord()">
+      <input id="wInpWord" class="form-input" placeholder="例: acquire">
+      <button type="button" class="btn btn-secondary btn-sm" id="wAutoFillBtn" onclick="autoFillWord()">🔍 自動入力</button>
     </div>
     <div id="wAutoFillMsg" style="display:none;font-size:.8rem;color:var(--text2);margin-bottom:8px">⏳ 自動入力中…</div>
     <div class="form-row">
@@ -1260,12 +1261,11 @@ function setTagFilter(tag){ activeTagFilter=tag; renderWordList(); }
 
 async function autoFillWord(){
   const word=document.getElementById('wInpWord').value.trim();
-  if(!word)return;
-  // 編集モードや既に意味が入っている場合はスキップ
-  if(document.getElementById('editWordId').value)return;
-  if(document.getElementById('wInpMeaning').value.trim())return;
   const msg=document.getElementById('wAutoFillMsg');
-  msg.style.display='';
+  const btn=document.getElementById('wAutoFillBtn');
+  if(!word){ msg.style.display=''; msg.textContent='❌ 先に英単語を入力してください。'; return; }
+  msg.style.display=''; msg.textContent='⏳ 自動入力中…';
+  btn.disabled=true;
   try{
     const res=await fetch(`${_SB_URL}/functions/v1/lookup-word`,{
       method:'POST',
@@ -1273,6 +1273,7 @@ async function autoFillWord(){
       body:JSON.stringify({word}),
     });
     const data=await res.json();
+    if(data.error){ msg.textContent='❌ '+data.error; btn.disabled=false; return; }
     if(data.meaning) document.getElementById('wInpMeaning').value=data.meaning;
     if(data.pos){
       const sel=document.getElementById('wInpPos');
@@ -1280,8 +1281,11 @@ async function autoFillWord(){
       if(opt) sel.value=data.pos;
     }
     if(data.example) document.getElementById('wInpExample').value=data.example;
-  }catch(e){}
-  msg.style.display='none';
+    msg.style.display='none';
+  }catch(e){
+    msg.textContent='❌ 通信エラー: '+e.message;
+  }
+  btn.disabled=false;
 }
 
 function openAddWordModal(){
@@ -1290,6 +1294,7 @@ function openAddWordModal(){
   ['Word','Meaning','Example','Tags'].forEach(f=>document.getElementById('wInp'+f).value='');
   document.getElementById('wInpPos').value='動詞';
   document.getElementById('wInpMarker').value='';
+  document.getElementById('wAutoFillMsg').style.display='none';
   document.getElementById('wordModalOverlay').classList.remove('hidden');
 }
 function openEditWordModal(id){
@@ -1302,6 +1307,7 @@ function openEditWordModal(id){
   document.getElementById('wInpExample').value=w.example||'';
   document.getElementById('wInpMarker').value=w.markerColor||'';
   document.getElementById('wInpTags').value=(w.tags||[]).join(',');
+  document.getElementById('wAutoFillMsg').style.display='none';
   document.getElementById('wordModalOverlay').classList.remove('hidden');
 }
 function closeWordModal(){ document.getElementById('wordModalOverlay').classList.add('hidden'); }
